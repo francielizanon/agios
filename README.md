@@ -2,6 +2,16 @@
 
 an I/O request scheduling library at file level
 
+## Introduction
+
+AGIOS was developped to be easily integrated into any I/O service that treats requests at a file level, such as a local file system or intermediate nodes in an I/O forwarding scheme. The user (the I/O service) gives requests to AGIOS, which applies a scheduling algorithm, and gives requests back to the user when they are scheduled. Multiple options are provided in scheduling algorithms, and new algorithms can be easily added to it. The actual processing of requests is left to the user, so the library can be generic.
+
+Tracing can be enabled so the library will generate trace files containing all request arrivals. If you want to use AGIOS for its tracing capabilities only, you are advised to choose the NOOP scheduling algorithm, as it will only induce minimal overhead.
+
+## Notes
+
+This is the second version of AGIOS. The first version, developped between 2012 and 2015, included both user-level library and kernel module implementations. Over time the library was almost completely rewritten, and the kernel module version was dropped. However, G. Koloventzos, from the Barcelona Supercomputing Center, adapted the kernel module version for his use, and it is still available in his repository: https://github.com/gkoloventzos/agios
+
 ## Requirements
 
 AGIOS uses [libconfig](https://www.hyperrealm.com/libconfig/libconfig_manual.html) to read the configuration file. 
@@ -65,8 +75,53 @@ The reason for calling it after the processing of requests is that this function
 
 Call agios_exit to stop the scheduling tread and free all allocated memory for the library.
 
+## Adding a new scheduling algorithm
+
+To add a new scheduling algorithm to AGIOS, follow these steps:
+
+### Choose a data structure
+
+Existing data structures are the hashtable and the timeline, and only one of them is used at any given moment to hold requests. In the hashtable, there are a fixed number of lines, and files are placed in the hashtable according to their string identifiers (provided to agios_add_request). Each line is thus a list of file_t structures for different files, and inside each file there is a read_queue and a write_queue where requests are placed in offset order. Contiguous requests in the same queue will be aggregated into a virtual request, that is a request_t structure containing a list of other request_t structs inside. Access to the hashtable is protected by one mutex per line of the hashtable.
+
+In the timeline, there is a single queue and requests are added at the end of it. The whole queue is protected by a single mutex. Even when the timeline is being used to hold the requests, the hashtable will still exist and must be updated to hold statistics about file accesses. In this case the per-line mutexes are not used, and the timeline mutex protects the whole hashtable.
+
+First of all you need to decide to which of these data structures requests are to be added to be consumed by your scheduling algorithm. Adding a different data structure is possible but will require deep modifications to the library. Alternatively, you can force a different behavior for the timeline (see the timeline_add_request function in req_timeline.c). When using TO-agg requests are added at the end of the queue only after checking for possible aggregations, with SW they are inserted following a different ordering, and with TWINS a set of multiple queues is used instead.
+
+### Implement your algorithm
+
+It is recommended to do so in a separate .c file. Your algorithm must implement the schedule function, which will be called to schedule requests. When called, the function will access the relevant data structures, making sure to hold the adequate lock, and select requests to be processed. Once selected, the request must be removed from the data structure, then given to the process_requests_step1 function, which will fill a struct with information about it. Then the scheduling algorithm must call the generic_post_process function, free the lock, and **only then** call process_requests_step2 giving as argument the struct returned by step1. 
+
+The second process_requests function returns a boolean, which may be true to notify that some periodic event is due. The scheduling algorithm must always check this return, and, if notified, return from the schedule function immediately. 
+
+The schedule function returns a 64-bit integer which is a waiting time in ns. It is to be zero unless the scheduling algorithm wants the scheduling thread to sleep for some time. You should **never** explicitly sleep in the schedule function, as it affects periodic events.
+
+Additionally, you may implement initialization and ending functions for the scheduling algorithm. Add your source files to src/CMakeLists.txt
+
+See SJF.c for an example of scheduling algorithm that uses the hashtable and TO.c for an example using the timeline. Additionally, see TWINS.c for an example of algorithm that asks for sleeping time.
+
+### Make it known to AGIOS
+
+In scheduling_algorithms.h, add your algorithm at the end of the list of #define and update IO_SCHEDULER_COUNT.
+
+In scheduling algorithms.c, add a 
+
+### About dynamic scheduling policies
 
 
+If you opt for a different behavior while using the timeline, you may want to check the migration between data structures, implemented in data_structures.c. This concerns the use of a dynamic scheduler that periodically changes the scheduling algorithm being used, and thus sometimes must migrate requests between data structures. 
 
+## TO DO
+
+The library keeps statistics on past accesses, global and separated by file and type (read or write), and also performance measurements. These information are available internally to be used by scheduling algorithms, but users might be interested in this information. Hence in the future it would be useful to design an interface to do so adequately.
+
+## Credit
+
+If AGIOS is useful to you, consider citing one of its publications in your research work:
+
+- “Automatic I/O scheduling algorithm selection for parallel file systems”. In Concurrency and Computation: Practice and Experience, Wiley, 2015. http://onlinelibrary.wiley.com/doi/10.1002/cpe.3606/abstract
+
+• “AGIOS: Application-Guided I/O Scheduling for Parallel File Systems”. In Parallel and Distributed Systems (ICPADS), 2013 International Conference on. IEEE. http://ieeexplore.ieee.org/xpl/articleDetails.jsp?arnumber=6808156
+
+Experiments that allowed the progress of AGIOS were conducted on the Grid'5000 experimental test bed, developed under the INRIA ALADDIN development action with support from CNRS, RENATER and several Universities as well as other funding bodies (see https://www.grid5000.fr).
 
 
