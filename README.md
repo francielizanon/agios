@@ -4,13 +4,13 @@ an I/O request scheduling library at file level
 
 ## Introduction
 
-AGIOS was developped to be easily integrated into any I/O service that treats requests at a file level, such as a local file system or intermediate nodes in an I/O forwarding scheme. The user (the I/O service) gives requests to AGIOS, which applies a scheduling algorithm, and gives requests back to the user when they are scheduled. Multiple options are provided in scheduling algorithms, and new algorithms can be easily added to it. The actual processing of requests is left to the user, so the library can be generic.
+AGIOS was developed to be easily integrated into any I/O service that treats requests at a file level, such as a local file system or intermediate nodes in an I/O forwarding scheme. The user (the I/O service) gives requests to AGIOS, which applies a scheduling algorithm, and gives requests back to the user when they are scheduled. Multiple options are provided in scheduling algorithms, and new algorithms can be easily added to it. The actual processing of requests is left to the user, so the library can be generic.
 
 Tracing can be enabled so the library will generate trace files containing all request arrivals. If you want to use AGIOS for its tracing capabilities only, you are advised to choose the NOOP scheduling algorithm, as it will only induce minimal overhead.
 
 ## Notes
 
-This is the second version of AGIOS. The first version, developped between 2012 and 2015, included both user-level library and kernel module implementations. Over time the library was almost completely rewritten, and the kernel module version was dropped. However, G. Koloventzos, from the Barcelona Supercomputing Center, adapted the kernel module version for his use, and it is still available in his repository: https://github.com/gkoloventzos/agios
+This is the second version of AGIOS. The first version, developed between 2012 and 2015, included both user-level library and kernel module implementations. Over time the library was almost completely rewritten, and the kernel module version was dropped. However, G. Koloventzos, from the Barcelona Supercomputing Center, adapted the kernel module version for his use, and it is still available in his repository: https://github.com/gkoloventzos/agios
 
 ## Requirements
 
@@ -67,7 +67,7 @@ After agios_add_request has added the requests to the internal data structure, t
 
 Please notice the callbacks are executed by the scheduling thread itself, which cannot proceed to schedule new requests until it has returned, and hence its implementation will affect the behavior of the system. If the callback directly synchronously processes requests (accessing files from the storage system), than the system will process only one request at a time, because no more requests can be scheduled until the end of the callback. Alternatively, the callback might create threads to process requests (as done in agios_test.c) and return immediately, for instance, or put the request into a sort of dispatch queue that will be consumed by other concurrent threads.
 
-**After** the request was definetely processed, with data read/written from/to storage, the user **must** call agios_release_request **to each request** providing the same information given to agios_add_request: file identifier, type, length and offset. This function is required to clean the request from the internal data structures, freeing all that was dynamically allocated. 
+**After** the request was definitely processed, with data read/written from/to storage, the user **must** call agios_release_request **to each request** providing the same information given to agios_add_request: file identifier, type, length and offset. This function is required to clean the request from the internal data structures, freeing all that was dynamically allocated. 
 
 The reason for calling it after the processing of requests is that this function also keeps track of the performance being attained by requests, which may be used internally by dynamic scheduling policies or parameter tuning. If you are using a simple scheduling algorithm with no dynamic behavior, you can call agios_release_request anytime you wish after the request was given to the callback, but you must still call it to free memory.
 
@@ -91,7 +91,7 @@ First of all you need to decide to which of these data structures requests are t
 
 It is recommended to do so in a separate .c file. Your algorithm must implement the schedule function, which will be called to schedule requests. When called, the function will access the relevant data structures, making sure to hold the adequate lock, and select requests to be processed. Once selected, the request must be removed from the data structure, then given to the process_requests_step1 function, which will fill a struct with information about it. Then the scheduling algorithm must call the generic_post_process function, free the lock, and **only then** call process_requests_step2 giving as argument the struct returned by step1. 
 
-The second process_requests function returns a boolean, which may be true to notify that some periodic event is due. The scheduling algorithm must always check this return, and, if notified, return from the schedule function immediately. 
+The second process_requests function returns a Boolean, which may be true to notify that some periodic event is due. The scheduling algorithm must always check this return, and, if notified, return from the schedule function immediately. 
 
 The schedule function returns a 64-bit integer which is a waiting time in ns. It is to be zero unless the scheduling algorithm wants the scheduling thread to sleep for some time. You should **never** explicitly sleep in the schedule function, as it affects periodic events.
 
@@ -129,11 +129,11 @@ If AGIOS is useful to you, consider citing one of its publications in your resea
 
 - “AGIOS: Application-Guided I/O Scheduling for Parallel File Systems”. In Parallel and Distributed Systems (ICPADS), 2013 International Conference on. IEEE. http://ieeexplore.ieee.org/xpl/articleDetails.jsp?arnumber=6808156
 
-AGIOS was developped with support from the:
+AGIOS was developed with support from the:
 
 - Federal University of Rio Grande do Sul (UFRGS), Brazil; 
 
-- Laboratoire d'Informatique de Grenoble (LIG), Inria, CNRS, University of Grenoble and Grenoble INP;
+- Laboratoire d'Informatique de Grenoble (LIG), Inria, CNRS, University of Grenoble Alpes and Grenoble INP;
 
 - Federal University of Santa Catarina (UFRGS), Brazil.
 
