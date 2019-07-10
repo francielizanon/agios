@@ -103,12 +103,17 @@ See SJF.c for an example of scheduling algorithm that uses the hashtable and TO.
 
 In scheduling_algorithms.h, add your algorithm at the end of the list of #define and update IO_SCHEDULER_COUNT.
 
-In scheduling algorithms.c, add a 
+In scheduling_algorithms.c, add a io_scheduler_instance_t struct for your scheduling algorithm in the io_schedulers list. It is supposed to appear in the same order as the #define in the scheduling_algorithms.h file. Give it a name, fill the init, schedule, and exit functions (init and exit may be NULL), provide NULL to select_algorithm and false to is_dynamic.
+
+needs_hashtable is true if you will use the hashtable and false if you prefer to use the timeline. max_aggreg_size is the maximum number of requests that can be aggregated into a single virtual request, that is only relevant if you are using the hashtable. 
+
+can_be_dynamically_selected says if a dynamic scheduling policy may choose your scheduling algorithm among the existing options. If you are using one of the provided data structures as is, you can set it to true. However, if you implemented a specific behavior to the timeline or a new data structure, you might need to adapt the migration between data structures (required when changing between scheduling algorithms), implemented in data_structures.c. Or you can set it to false.
+
+Include your header in the beginning of scheduling_algorithms.c and it should work.
 
 ### About dynamic scheduling policies
 
-
-If you opt for a different behavior while using the timeline, you may want to check the migration between data structures, implemented in data_structures.c. This concerns the use of a dynamic scheduler that periodically changes the scheduling algorithm being used, and thus sometimes must migrate requests between data structures. 
+A dynamic scheduling algorithm does not schedule requests (its schedule function is set to NULL), but periodically changes the scheduling algorithm being used. That is done by a call to the select_algorithm function, which will simply return one of the other policies (among the ones with is_dynamic = false and can_be_dynamically_selected = true) that is to be used. The actual change in the current algorithm and migration of data structures is already implemented by the library.
 
 ## TO DO
 
