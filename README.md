@@ -115,20 +115,28 @@ Include your header in the beginning of scheduling_algorithms.c and it should wo
 
 ### About dynamic scheduling policies
 
-A dynamic scheduling algorithm does not schedule requests (its schedule function is set to NULL), but periodically changes the scheduling algorithm being used. That is done by a call to the select_algorithm function, which will simply return one of the other policies (among the ones with is_dynamic = false and can_be_dynamically_selected = true) that is to be used. The actual change in the current algorithm and migration of data structures is already implemented by the library.
+A dynamic scheduling algorithm is a scheduling algorithm and should be added in a similar way, except that it does not schedule requests (its schedule function is set to NULL), but periodically changes the scheduling algorithm being used. That means you are not to choose one data structure nor to implement a schedule function, but you have to implement the select_algorithm function, which will be called periodically and simply return one of the other algorithms (among the ones with is_dynamic = false and can_be_dynamically_selected = true) that is to be used. The actual change in the current algorithm and migration of data structures is already implemented by the library, so you don't have to do that.
 
 ## TO DO
 
 The library keeps statistics on past accesses, global and separated by file and type (read or write), and also performance measurements. These information are available internally to be used by scheduling algorithms, but users might be interested in this information. Hence in the future it would be useful to design an interface to do so adequately.
 
 ## Credit
-
+ 
 If AGIOS is useful to you, consider citing one of its publications in your research work:
 
 - “Automatic I/O scheduling algorithm selection for parallel file systems”. In Concurrency and Computation: Practice and Experience, Wiley, 2015. http://onlinelibrary.wiley.com/doi/10.1002/cpe.3606/abstract
 
-• “AGIOS: Application-Guided I/O Scheduling for Parallel File Systems”. In Parallel and Distributed Systems (ICPADS), 2013 International Conference on. IEEE. http://ieeexplore.ieee.org/xpl/articleDetails.jsp?arnumber=6808156
+- “AGIOS: Application-Guided I/O Scheduling for Parallel File Systems”. In Parallel and Distributed Systems (ICPADS), 2013 International Conference on. IEEE. http://ieeexplore.ieee.org/xpl/articleDetails.jsp?arnumber=6808156
 
-Experiments that allowed the progress of AGIOS were conducted on the Grid'5000 experimental test bed, developed under the INRIA ALADDIN development action with support from CNRS, RENATER and several Universities as well as other funding bodies (see https://www.grid5000.fr).
+AGIOS was developped with support from the:
+
+- Federal University of Rio Grande do Sul (UFRGS), Brazil; 
+
+- Laboratoire d'Informatique de Grenoble (LIG), Inria, CNRS, University of Grenoble and Grenoble INP;
+
+- Federal University of Santa Catarina (UFRGS), Brazil.
+
+Experiments that allowed its progress were conducted on the Grid'5000 experimental test bed, developed under the INRIA ALADDIN development action with support from CNRS, RENATER and several Universities as well as other funding bodies (see https://www.grid5000.fr).
 
 
