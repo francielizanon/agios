@@ -2,6 +2,10 @@
 
 an I/O request scheduling library at file level
 
+## Requirements
+
+AGIOS uses [libconfig](https://www.hyperrealm.com/libconfig/libconfig_manual.html) to read the configuration file. 
+
 ## Installing it
 
 First obtain the repository, then use the following commands to build and install the library:
