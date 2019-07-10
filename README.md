@@ -47,11 +47,20 @@ Requests are to be added to the library through the agios_add_request function. 
 
 This function is thread-safe and can be called by concurrent threads without problems (although the parallelism may be limited by some internal locks).
 
-### Processing requests
+### Processing and releasing requests
 
 After agios_add_request has added the requests to the internal data structure, the scheduling thread will apply a scheduling algorithm and eventually decide to process requests, and call the user-provided callbacks to do so. 
 
 Please notice the callbacks are used by the scheduling thread itself, which cannot proceed to schedule new requests until it has returned, and hence its implementation will affect the behavior of the system. If the callback directly synchronously processes requests (accessing files from the storage system), than the system will process only one request at a time, because no more requests will be schedule until the end of the callback. Alternatively, the callback might create threads to process requests (as done in agios_test.c) and return immediately, for instance, or put the request into a sort of dispatch queue that will be consumed by other concurrent threads.
+
+**After** the request was definetely processed, with data read/written from/to storage, the user **must** call agios_release_request **to each request** providing the same information given to agios_add_request: file identifier, type, length and offset. This function is required to clean the request from the internal data structures, freeing all that was dynamically allocated. 
+
+The reason for calling it after the processing of requests is that this function also keeps track of the performance being attained by requests, which may be used internally by dynamic scheduling policies or parameter tuning. If you are using a simple scheduling algorithm with no dynamic behavior, you can call agios_release_request anytime you wish after the request was given to the callback, but you must still call it to free memory.
+
+### End of utilization
+
+Call agios_exit to stop the scheduling tread and free all allocated memory for the library.
+
 
 
 
