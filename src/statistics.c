@@ -1,6 +1,7 @@
 /*! \function statistics.c
     \brief Keeps global statistics (for all accesses) and provides functions to update and manipulate them. Also used to update local statistics (for each queue separately).
  */
+#include <assert.h>
 #include <limits.h>
 #include <pthread.h>
 #include <string.h>
@@ -9,12 +10,78 @@
 #include "common_functions.h"
 #include "mylist.h"
 #include "req_hashtable.h"
+#include "req_timeline.h"
+#include "scheduling_algorithms.h"
 #include "statistics.h"
 
 static struct timespec last_req; /**< time of the last request arrival. */
 static struct global_statistics_t global_stats; /**< global statistics. */
 static pthread_mutex_t global_statistics_mutex = PTHREAD_MUTEX_INITIALIZER; /**< to protectthe global statistics */
 
+/**
+ * function called by the user of the library to obtain metrics about the observed requests. The caller must NOT be holding any locks. This call will cause all metrics to be reseted. NOTICE: this function does not consider the used scheduling algorithm might change during its execution, that would change the way we use the locks (@see acquire_adequate_lock). You should not use this function if you are using a dynamic selection of the scheduling algorithm by AGIOS.
+ * @return a pointer to a filled agios_metrics_t structure. The user must free this structure when no longer using it.
+ */
+struct agios_metrics_t *agios_get_metrics_and_reset(void)
+{
+	struct agios_list_head *list; /**< used to access each line of the hashtable.*/
+	struct file_t *req_file; /**< used to iterate over all files in a line of the hashtable. */
+	int64_t queue_nb=0; /**< the number of queues where we found requests. We'll use it to calculate the average offset distance. */
+
+	//allocate the structure to be returned
+	struct agios_metrics_t *ret = (struct agios_metrics_t *) malloc(sizeof(struct agios_metrics_t));
+	assert(ret);
+	//get the global statistics, put them in our new structure, reset them
+	pthread_mutex_lock(&global_statistics_mutex);
+	ret->total_reqnb = global_stats.total_reqnb;
+	ret->reads = global_stats.reads;
+	ret->writes = global_stats.writes;
+	if (global_stats.avg_time_between_requests >= 0) ret->avg_time_between_requests = global_stats.avg_time_between_requests;
+	else ret->avg_time_between_requests = 0;
+	if (global_stats.avg_request_size >= 0)	ret->avg_request_size = global_stats.avg_request_size;
+	else ret->avg_request_size = 0;
+	ret->max_request_size = global_stats.max_request_size;
+	reset_global_stats_nolock();
+	pthread_mutex_unlock(&global_statistics_mutex);
+	//look in the hashtable for the other statistics we need
+	/*! \todo make it friendly to dynamic scheduling algorithm selection */
+	ret->filenb = 0;
+	ret->avg_offset_distance =0;
+	ret->served_bytes = 0;
+	if (!current_scheduler->needs_hashtable)
+		timeline_lock();
+	for (int32_t i=0; i< AGIOS_HASH_ENTRIES; i++) {
+		if(current_scheduler->needs_hashtable)
+			hashtable_lock(i);	
+		list = &hashlist[i];
+		agios_list_for_each_entry (req_file, list, hashlist) { //goes over all files of this line of the hashtable
+			//we will only count this file if it has received or released new requests (it might be here since previous periods where it was accessed)
+			if ((req_file->read_queue.stats.receivedreq_nb > 0) || 
+				(req_file->write_queue.stats.receivedreq_nb > 0) || 
+				(req_file->read_queue.stats.processed_req_size > 0) || 
+				(req_file->write_queue.stats.processed_req_size > 0)) {
+				ret->filenb++;
+				ret->served_bytes += req_file->read_queue.stats.processed_req_size + req_file->write_queue.stats.processed_req_size;
+				if (req_file->read_queue.stats.avg_distance >= 0) {
+					queue_nb++;
+					ret->avg_offset_distance += req_file->read_queue.stats.avg_distance;
+				}
+				if (req_file->write_queue.stats.avg_distance >= 0) {
+					queue_nb++;
+					ret->avg_offset_distance += req_file->write_queue.stats.avg_distance;
+				}
+			}
+			reset_stats_queue(&req_file->read_queue);
+			reset_stats_queue(&req_file->write_queue);
+		}
+		if(current_scheduler->needs_hashtable)
+			hashtable_unlock(i);	
+	}
+	if (!current_scheduler->needs_hashtable)
+		timeline_unlock();
+	if (queue_nb > 0) ret->avg_offset_distance = ret->avg_offset_distance/queue_nb;
+	return ret;
+}
 /**
  * function called to update the local statistics to a queue after the arrival of a new request.
  * @param stats the statistics structure of the queue to be updated.
@@ -45,7 +112,7 @@ void update_local_stats(struct queue_statistics_t *stats, struct request_t *req)
 /**
  * function called when a new request is received, to update the global statistics.
  * @param stats the global statistics structure.
- * @req the newly arrived request.
+ * @param req the newly arrived request.
  */
 void update_global_stats_newreq(struct global_statistics_t *stats, 
 				struct request_t *req)
@@ -61,6 +128,8 @@ void update_global_stats_newreq(struct global_statistics_t *stats,
 	get_long2timespec(req->arrival_time, &last_req);
 	//update global statistics on request size 
 	stats->avg_request_size = update_iterative_average(stats->avg_request_size, req->len, stats->total_reqnb);
+	if (req->len > stats->max_request_size)
+		stats->max_request_size = req->len;
 	//update global statistics on operation
 	if(req->type == RT_READ)
 		stats->reads++;
@@ -82,16 +151,24 @@ void statistics_newreq(struct request_t *req)
 	update_local_stats(&req->globalinfo->stats, req);
 }
 /**
- * resets all global statistics.
+ * function used internally to reset all global statistics. The caller MUST hold the global_statistics_mutex lock.
  */
-void reset_global_stats(void)
+void reset_global_stats_nolock(void)
 {
-	pthread_mutex_lock(&global_statistics_mutex);
 	global_stats.total_reqnb =0;
 	global_stats.reads = 0;
 	global_stats.writes = 0;
 	global_stats.avg_time_between_requests = -1;
 	global_stats.avg_request_size = -1;
+	global_stats.max_request_size= 0;
+}
+/**
+ * resets all global statistics.
+ */
+void reset_global_stats(void)
+{
+	pthread_mutex_lock(&global_statistics_mutex);
+	reset_global_stats_nolock();
 	pthread_mutex_unlock(&global_statistics_mutex);
 }
 /**

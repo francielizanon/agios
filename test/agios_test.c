@@ -156,12 +156,27 @@ void retrieve_arguments_and_generate_requests(int argc, char **argv)
 	free(lastoffset);
 }
 
+void print_stats(struct agios_metrics_t *stats) 
+{
+	printf("total_reqnb %ld, reads %ld, writes %ld, avg_time_between_requests %ld, avg_request_size %ld, max_request_size %ld, filenb %ld, avg_offset_distance %ld, served_bytes %ld\n", 
+		stats->total_reqnb,
+		stats->reads,
+		stats->writes,
+		stats->avg_time_between_requests,
+		stats->avg_request_size,
+		stats->max_request_size,
+		stats->filenb,
+		stats->avg_offset_distance,
+		stats->served_bytes);
+}
+
 int main (int argc, char **argv)
 {
 	int64_t elapsed;
 	pthread_t *threads;
 	int64_t *thread_index;
 	struct timespec start_time, end_time;
+	struct agios_metrics_t *stats;
 
 	/*get arguments*/
 	retrieve_arguments_and_generate_requests(argc, argv);
@@ -201,6 +216,13 @@ int main (int argc, char **argv)
 	/*calculate and print the throughput*/
 	elapsed = ((end_time.tv_nsec - start_time.tv_nsec) + ((end_time.tv_sec - start_time.tv_sec)*1000000000L));
 	printf("It took %ldns to generate and schedule %d requests. The thoughput was of %f requests/s\n", elapsed, g_generated_reqnb, ((double) (g_generated_reqnb) / (double) elapsed)*1000000000L);	
+	//get statistics twice and print them
+	stats = agios_get_metrics_and_reset();
+	print_stats(stats);
+	free(stats);
+	stats = agios_get_metrics_and_reset();
+	print_stats(stats);
+	free(stats);
 	//end agios, wait for the end of all threads, free stuff
 	agios_exit();
 	for (int32_t i = 0; i < g_thread_nb; i++) pthread_join(threads[i], NULL);

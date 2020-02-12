@@ -14,9 +14,12 @@ struct global_statistics_t
 	int64_t writes; /**< number of received write requests. */
 	int64_t avg_time_between_requests; /**< iteratively calculated average time between consecutive requests. */
 	int64_t avg_request_size; /**< iteratively calculated average request size. */
+	int64_t max_request_size; /**< the maximum observed request size. */
 };
 
 void statistics_newreq(struct request_t *req);
 void reset_global_stats(void);
 void reset_all_statistics(void);
 void stats_aggregation(struct queue_t *related);
+void reset_global_stats_nolock(void);
+void reset_stats_queue(struct queue_t *queue);

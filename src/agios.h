@@ -39,6 +39,21 @@ bool agios_cancel_request(char *file_id,
 				int32_t type, 
 				int64_t len, 
 				int64_t offset);
+/*! \struct agios_metrics_t
+    \brief The structure used by agios to report metrics collected over recent accesses. These metrics are relevant to the period since the last reset.
+ */
+struct agios_metrics_t {
+	int64_t total_reqnb; /**< number of received requests. */
+	int64_t reads; /**< number of received read requests. */
+	int64_t writes; /**< number of received write requests. */
+	int64_t avg_time_between_requests; /**< average time between consecutive requests in ns. */
+	int64_t avg_request_size; /**< average request size in bytes. */
+	int64_t max_request_size; /**< the maximum observed request size in bytes. */
+	int64_t filenb;  /**< the number of accessed files. */
+	int64_t avg_offset_distance; /**< the average offset distance between consecutive requests to the same file (in bytes).*/
+	int64_t served_bytes; /**< the total amount of bytes accessed by requests that were processed and released. */
+};
+struct agios_metrics_t *agios_get_metrics_and_reset(void);
 #ifdef __cplusplus
 }
 #endif
