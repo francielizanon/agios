@@ -47,6 +47,8 @@ See test/agios_test.c in the repository for an example of utilization of the lib
 
 To initialize the library, the application has to call agios_init, passing as arguments two callback functions that will be used by the library when it is time to process requests. The first callback function will receive as argument a single request to be processed, and the second a list of requests at once. The second callback is optional, and NULL might be passed instead. The list of requests passed to the second callback are always contiguous requests of the same type for the same file. If the second callback is not provided, the library will sequentially call the simple callback multiple times, one for each request.
 
+The first callback is actually also optional, and NULL may be passed. However, in that case proper callbacks have to be given when adding requests.
+
 In addition to the two callbacks, a path to a configuration file may be provided (if not, AGIOS will try to read from the default /etc/agios.conf). See agios.conf in the repository for an example of configuration file and explanation of all parameters.
 
 Finally, the last argument to agios_init is the number of existing queue ids that may be passed to agios_add_request. Two scheduling algorithms provided by AGIOS (SW and TWINS) use these queue ids to represent either the application that issued the request or the data server that holds the data being accessed. Hence this parameter is only relevant when using one of these algorithms (or a dynamic algorithm that may sometimes choose to use one of them). In other cases, 0 is to be provided to agios_init. If max_queue_id is passed to agios_init, then the queue ids provided to agios_add_request **must** be between 0 and [max_queue_id]-1, otherwise the library will crash (specially in the case of TWINS, SW is somewhat more robust).
@@ -57,7 +59,7 @@ If agios_init is successful, then a scheduling thread will be executing in a loo
 
 ### Adding requests
 
-Requests are to be added to the library through the agios_add_request function. The arguments are: a string representing the file being accessed by the request, its type (either RT_READ or RT_WRITE), starting offset in bytes, length in bytes, identifier and queue_id. Identifier is a 64-bit integer that uniquely represents that request for the user, and is what is given as argument in the callbacks to process requests. See the previous section about initialization for a discussion on queue_id.
+Requests are to be added to the library through the agios_add_request function. The arguments are: a string representing the file being accessed by the request, its type (either RT_READ or RT_WRITE), starting offset in bytes, length in bytes, identifier, queue_id, and a callback function. Identifier is a 64-bit integer that uniquely represents that request for the user, and is what is given as argument in the callbacks to process requests. See the previous section about initialization for a discussion on queue_id. The callback here is optional, and NULL may be given. In that case, the callback given to agios_init will be used. If both are provided, the request-specific callback will be preferred. The users must ensure at least one of the callbacks is correctly provided to AGIOS.
 
 This function is thread-safe and can be called by concurrent threads without problems (although the parallelism may be limited by some internal locks).
 
@@ -69,7 +71,7 @@ Please notice the callbacks are executed by the scheduling thread itself, which 
 
 **After** the request was definitely processed, with data read/written from/to storage, the user **must** call agios_release_request **to each request** providing the same information given to agios_add_request: file identifier, type, length and offset. This function is required to clean the request from the internal data structures, freeing all that was dynamically allocated. 
 
-The reason for calling it after the processing of requests is that this function also keeps track of the performance being attained by requests, which may be used internally by dynamic scheduling policies or parameter tuning. If you are using a simple scheduling algorithm with no dynamic behavior, you can call agios_release_request anytime you wish after the request was given to the callback, but you must still call it to free memory.
+The reason for calling it after the processing of requests is that this function also keeps track of the performance being attained by requests, which may be used internally by dynamic scheduling policies or parameter tuning. If you are using a simple scheduling algorithm with no dynamic behavior, and you don't care about performance metrics reported by AGIOS, you can call agios_release_request anytime you wish after the request was given to the callback, but you must still call it to free memory.
 
 ### End of utilization
 
