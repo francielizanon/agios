@@ -5,6 +5,7 @@
     @see req_hashtable.c
     @see req_timeline.c
 */  
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -97,6 +98,7 @@ bool file_init(struct file_t *req_file,
  * @param identifier a 64-bit value that makes sense for the user to uniquely identify this request.
  * @param arrival_time the timestamp for the arrival of this request.
  * @param the identifier of the application or server for this request, only relevant for TWINS and SW. @see agios_add_request
+ * @param callback is a pointer to the callback function to be used for this request. If you did not provide a callback to agios_init, you MUST provide it here. If not relevant, provide NULL.
  * @see agios_request.h
  * @return the newly allocated and filled request structure, NULL if it failed.
  */
@@ -106,7 +108,8 @@ struct request_t * request_constructor(char *file_id,
 					int64_t len, 
 					int64_t identifier,  
 					int64_t arrival_time, 
-					int32_t queue_id)
+					int32_t queue_id,
+					void *callback(int64_t req_id))
 {
 	struct request_t *new; /**< The new request structure that will be returned */
 
@@ -134,6 +137,7 @@ struct request_t * request_constructor(char *file_id,
 	g_last_timestamp++;
 	new->timestamp = g_last_timestamp;
 	init_agios_list_head(&new->related);
+	new->callback = callback;
 	return new;
 }
 /**
@@ -155,7 +159,8 @@ struct request_t *make_virtual_request(struct request_t *aggregation_head,
 					aggregation_head->len, 
 					0, 
 					aggregation_head->arrival_time, 
-					aggregation_head->queue_id);
+					aggregation_head->queue_id,
+					NULL); 
 	newreq->sched_factor = aggregation_head->sched_factor;
 	newreq->timestamp = aggregation_head->timestamp;
 	/*replaces the request on the hashtable*/
@@ -332,6 +337,7 @@ struct file_t *find_req_file(struct agios_list_head *hash_list,
  * @param len is the size of the request (in bytes).
  * @param identifier is a 64-bit value that makes sense for the user to identify this request. It is the argument provided to the callback (so it must uniquely identify this request to the user).
  * @param queue_id is used for the TWINS and SW algorithms to be the identifier of the server or application, respectively. If not relevant, provide 0.
+ * @param callback is a pointer to the callback function to be used for this request. If you did not provide a callback to agios_init, you MUST provide it here. If not relevant, provide NULL.
  * @return true of false for success.
  */
 bool agios_add_request(char *file_id, 
@@ -339,7 +345,8 @@ bool agios_add_request(char *file_id,
 			int64_t offset, 
 			int64_t len, 
 			int64_t identifier, 
-			int32_t queue_id)
+			int32_t queue_id,
+			void *callback(int64_t req_id))
 {
 	struct request_t *req;  /**< The request structure we will fill with the new request.*/
 	struct timespec arrival_time; /**< Filled with the time of arrival for this request */
@@ -347,11 +354,13 @@ bool agios_add_request(char *file_id,
 	int32_t hash = get_hashtable_position(file_id); /**< The position of the hashtable where information about this file is, calculated from the file handle. */ 
 	bool using_hashtable; /**< Used to control the used data structure in the case it is being changed while this function is running */
 
+	//if we do not have a global callback, we MUST have one provided here, so check for that
+	assert((user_callbacks.process_request_cb != NULL) || (callback != NULL));
 	//build the request_t structure and fill it for the new request, also add it to the current pattern in case we are using the pattern matching mechanism
 	agios_gettime(&(arrival_time));
 	timestamp = get_timespec2long(arrival_time);
 //	add_request_to_pattern(timestamp, offset, len, type, file_id); 
-	req = request_constructor(file_id, type, offset, len, identifier, timestamp, queue_id);
+	req = request_constructor(file_id, type, offset, len, identifier, timestamp, queue_id, callback);
 	if (!req) return false;
 	//acquire the lock for the right data structure (it depends on the current scheduling algorithm being used)
 	using_hashtable = acquire_adequate_lock(hash);

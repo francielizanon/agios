@@ -94,6 +94,7 @@ struct request_t {
 	struct agios_list_head reqs_list; /**< list of requests inside this virtual request*/
 	struct request_t *agg_head; /**< pointer to the virtual request structure (if this one is part of an aggregation) */
 	struct agios_list_head list;  /**< to be inserted as part of a virtual request */
+	void * (*callback)(int64_t req_id); /**< the callback to be used to process this request. */
 };
 
 void request_cleanup(struct request_t *aux_req);

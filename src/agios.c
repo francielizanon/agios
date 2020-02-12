@@ -45,11 +45,6 @@ bool agios_init(void * process_request_user(int64_t req_id),
 		char *config_file, 
 		int32_t max_queue_id)
 {
-	//check if a callback was provided 
-	if (!process_request_user) {
-		agios_print("Incorrect parameters to agios_init\n");
-		return false; //we don't use the goto cleanup_on_error because we have nothing to clean up
-	}
 	user_callbacks.process_request_cb = process_request_user;
 	user_callbacks.process_requests_cb = process_requests_user;
 	if (!read_configuration_file(config_file)) goto cleanup_on_error; 
