@@ -78,7 +78,7 @@ void *test_thr(void *arg)
 		timeout.tv_nsec = requests[i].time_before % 1000000000L;
 		nanosleep(&timeout, NULL);
 		/*give a request to AGIOS*/
-		if(!agios_add_request(requests[i].fileid, requests[i].type, requests[i].offset, requests[i].len, i, requests[i].queue_id, NULL)) {
+		if(!agios_add_request(requests[i].fileid, requests[i].type, requests[i].offset, requests[i].len, i, requests[i].queue_id, NULL, NULL)) {
 			printf("PANIC! Agios_add_request failed!\n");
 		}
 	}

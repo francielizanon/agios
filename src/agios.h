@@ -30,7 +30,8 @@ bool agios_add_request(char *file_id,
 			int64_t len, 
 			int64_t identifier, 
 			int32_t queue_id,
-			void *callback(int64_t req_id));
+			void *callback(int64_t req_id, void* user_info),
+			void *user_info);
 bool agios_release_request(char *file_id, 
 				int32_t type, 
 				int64_t len, 

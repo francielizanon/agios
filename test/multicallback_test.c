@@ -60,25 +60,25 @@ void * test_process(int64_t req_id)
 	}
 	return 0;
 }
-void * test_process_th1(int64_t req_id)
+void * test_process_th1(int64_t req_id, void* user_info)
 {
 	printf("Called th1 to process %ld\n", req_id);
 	test_process(req_id);
 	return 0;
 }
-void * test_process_th2(int64_t req_id)
+void * test_process_th2(int64_t req_id, void* user_info)
 {
 	printf("Called th2 to process %ld\n", req_id);
 	test_process(req_id);
 	return 0;
 }
-void * test_process_th3(int64_t req_id)
+void * test_process_th3(int64_t req_id, void* user_info)
 {
 	printf("Called th3 to process %ld\n", req_id);
 	test_process(req_id);
 	return 0;
 }
-void * test_process_th4(int64_t req_id)
+void * test_process_th4(int64_t req_id, void* user_info)
 {
 	printf("Called th4 to process %ld\n", req_id);
 	test_process(req_id);
@@ -116,7 +116,7 @@ void *test_thr(void *arg)
 		if ((i % 5) == 0) this_function = NULL;
 		else this_function = my_function;
 		printf("Adding request %d\n", i);
-		if(!agios_add_request(requests[i].fileid, requests[i].type, requests[i].offset, requests[i].len, i, requests[i].queue_id, this_function)) {
+		if(!agios_add_request(requests[i].fileid, requests[i].type, requests[i].offset, requests[i].len, i, requests[i].queue_id, this_function, NULL)) {
 			printf("PANIC! Agios_add_request failed!\n");
 		}
 	}

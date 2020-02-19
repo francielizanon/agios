@@ -15,7 +15,8 @@ struct agios_client {
  */
 struct processing_req_info_t {
 	int64_t user_id; /**< the user_id field, provided to agios_add_requset as a request identifier that makes sense to the user */
-	void * (*callback)(int64_t req_id); /**< the callback provided that is specific to this request, if it was provided to agios_add_request (otherwise this will be NULL) */
+	void * (*callback)(int64_t req_id, void *user_info); /**< the callback provided that is specific to this request, if it was provided to agios_add_request (otherwise this will be NULL) */
+	void *user_info; /**< additional user information provided to help process this request. */
 };
 /* \struct processing_info_t is a struct to hold information about one or more requests that are to be processed. It is filled by the process_requests_step1 function and used in the process_requests_step2 to send requests back to the user through the provided callbacks. 
  */

@@ -94,6 +94,7 @@ struct processing_info_t *process_requests_step1(struct request_t *head_req, int
 				put_this_request_in_dispatch(aux_req, this_time, &head_req->globalinfo->dispatch);
 				info->reqs[info->reqnb].user_id = aux_req->user_id;
 				info->reqs[info->reqnb].callback = aux_req->callback;
+				info->reqs[info->reqnb].user_info = aux_req->user_info;
 				info->reqnb++;
 			}
 			aux_req = req;
@@ -102,12 +103,14 @@ struct processing_info_t *process_requests_step1(struct request_t *head_req, int
 			put_this_request_in_dispatch(aux_req, this_time, &head_req->globalinfo->dispatch);
 			info->reqs[info->reqnb].user_id = aux_req->user_id;
 			info->reqs[info->reqnb].callback = aux_req->callback;
+			info->reqs[info->reqnb].user_info = aux_req->user_info;
 			info->reqnb++;
 		}
 	} else { //a simple request
 		put_this_request_in_dispatch(head_req, this_time, &head_req->globalinfo->dispatch);
 		info->reqs[0].user_id = head_req->user_id;
 		info->reqs[0].callback = head_req->callback;
+		info->reqs[0].user_info = head_req->user_info;
 	}
 	//update requests and files counters
 	if (head_req->globalinfo->req_file->timeline_reqnb == 0) dec_current_filenb(); //timeline_reqnb is updated in the put_this_request_in_dispatch function
@@ -127,7 +130,7 @@ bool process_requests_step2(struct processing_info_t *info)
 	if (info->reqnb == 1) { //simplest case, a single request
 		//first try to use the callback provided for the request, if that is not available we use the general callback given to agios_init
 		assert ((NULL != user_callbacks.process_request_cb) || (NULL != info->reqs[0].callback));
-		if (NULL != info->reqs[0].callback)  (info->reqs[0].callback)(info->reqs[0].user_id);
+		if (NULL != info->reqs[0].callback)  (info->reqs[0].callback)(info->reqs[0].user_id, info->reqs[0].user_info);
 		else user_callbacks.process_request_cb(info->reqs[0].user_id);
 	} else { //more than one request
 		//if none of the requests have specific callbacks, we can use a callback for a list of requests, if that was provided.
@@ -145,7 +148,7 @@ bool process_requests_step2(struct processing_info_t *info)
 			for (int32_t i=0; i < info->reqnb; i++) {
 				assert ((info->reqs[i].callback != NULL) || (user_callbacks.process_request_cb != NULL));
 				if (NULL != info->reqs[i].callback)
-					(info->reqs[i].callback)(info->reqs[i].user_id);
+					(info->reqs[i].callback)(info->reqs[i].user_id, info->reqs[i].user_info);
 				else
 					user_callbacks.process_request_cb(info->reqs[i].user_id);
 			}

@@ -109,7 +109,8 @@ struct request_t * request_constructor(char *file_id,
 					int64_t identifier,  
 					int64_t arrival_time, 
 					int32_t queue_id,
-					void *callback(int64_t req_id))
+					void *callback(int64_t req_id, void* user_info),
+					void *user_info)
 {
 	struct request_t *new; /**< The new request structure that will be returned */
 
@@ -138,6 +139,7 @@ struct request_t * request_constructor(char *file_id,
 	new->timestamp = g_last_timestamp;
 	init_agios_list_head(&new->related);
 	new->callback = callback;
+	new->user_info = user_info;
 	return new;
 }
 /**
@@ -160,6 +162,7 @@ struct request_t *make_virtual_request(struct request_t *aggregation_head,
 					0, 
 					aggregation_head->arrival_time, 
 					aggregation_head->queue_id,
+					NULL,
 					NULL); 
 	newreq->sched_factor = aggregation_head->sched_factor;
 	newreq->timestamp = aggregation_head->timestamp;
@@ -346,7 +349,8 @@ bool agios_add_request(char *file_id,
 			int64_t len, 
 			int64_t identifier, 
 			int32_t queue_id,
-			void *callback(int64_t req_id))
+			void *callback(int64_t req_id, void* user_info),
+			void *user_info)
 {
 	struct request_t *req;  /**< The request structure we will fill with the new request.*/
 	struct timespec arrival_time; /**< Filled with the time of arrival for this request */
@@ -360,7 +364,7 @@ bool agios_add_request(char *file_id,
 	agios_gettime(&(arrival_time));
 	timestamp = get_timespec2long(arrival_time);
 //	add_request_to_pattern(timestamp, offset, len, type, file_id); 
-	req = request_constructor(file_id, type, offset, len, identifier, timestamp, queue_id, callback);
+	req = request_constructor(file_id, type, offset, len, identifier, timestamp, queue_id, callback, user_info);
 	if (!req) return false;
 	//acquire the lock for the right data structure (it depends on the current scheduling algorithm being used)
 	using_hashtable = acquire_adequate_lock(hash);
