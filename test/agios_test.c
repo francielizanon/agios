@@ -162,7 +162,7 @@ int main (int argc, char **argv)
 	pthread_t *threads;
 	int64_t *thread_index;
 	struct timespec start_time, end_time;
-
+	// commit test
 	/*get arguments*/
 	retrieve_arguments_and_generate_requests(argc, argv);
 	/*start AGIOS*/
