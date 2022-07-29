@@ -1,0 +1,32 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../src/agios.h
+pthread.h
+-
+stdbool.h
+-
+stdint.h
+-
+
+/home/luan/Devel/agios/test/agios_test.c
+assert.h
+-
+pthread.h
+-
+stdbool.h
+-
+stdint.h
+-
+stdio.h
+-
+stdlib.h
+-
+agios.h
+-
+

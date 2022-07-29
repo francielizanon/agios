@@ -114,10 +114,11 @@ void * agios_thread(void *arg)
 		if (0 < get_current_reqnb()) { //here we use the mutex to access the variable current_reqnb because we don't want to risk getting an outdated value and then sleeping for nothing
 			scheduler_waiting_time = current_scheduler->schedule(); //the scheduler may have a reason to ask us for a sleeping time (for instance, TWINS keeps track of time windows)
 			if (scheduler_waiting_time > 0) { //the scheduling algorithm wants us to sleep for a while, so we'll respect that, and not with a cond_timedwait because this sleep is not to be interrupted by new request arrivals, and is not conditional to not having queued requests (we assume the scheduling algorithm knows what it is doing)
-                if(remaining_time >= 0)
+                if(remaining_time >= 0){
     				fill_struct_timespec(agios_min(scheduler_waiting_time, remaining_time), &timeout); //if we are supposed to change the scheduling algorithm before the end of the waiting time provided by the scheduler, we just wait until then
-                else
+				}else{
     				fill_struct_timespec(scheduler_waiting_time, &timeout);
+				}
 				if (TWINS_SCHEDULER != current_alg) {
 					nanosleep(&timeout, NULL);
 				} else {
