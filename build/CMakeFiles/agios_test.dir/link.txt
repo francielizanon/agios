@@ -1,1 +1,0 @@
-/usr/bin/cc -Wall   CMakeFiles/agios_test.dir/test/agios_test.c.o  -o agios_test  -Wl,-rpath,/home/luan/Devel/agios/build libagios.so -lpthread -lconfig 
