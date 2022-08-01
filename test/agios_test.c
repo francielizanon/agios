@@ -162,11 +162,21 @@ int main (int argc, char **argv)
 	pthread_t *threads;
 	int64_t *thread_index;
 	struct timespec start_time, end_time;
+
+	char *envvar_conf = "AGIOS_CONF";
+	int buf_size = 100;
+	char file_config[buf_size];
+
+	if(!getenv(envvar_conf) || snprintf(file_config, buf_size, "%s", getenv(envvar_conf)) >= buf_size){
+        fprintf(stderr, "The environment variable %s was not found or the BUFSIZE of %d was to small .\n", envvar_conf, buf_size);
+        exit(1);
+    }	
+	
 	// commit test
 	/*get arguments*/
 	retrieve_arguments_and_generate_requests(argc, argv);
 	/*start AGIOS*/
-	if (!agios_init(test_process, NULL, "/tmp/agios.conf", g_queue_ids)) {
+	if (!agios_init(test_process, NULL, file_config, g_queue_ids)) {
 		printf("PANIC! Could not initialize AGIOS!\n");
 		exit(1);
 	}
