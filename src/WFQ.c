@@ -22,12 +22,17 @@
 
 static int g_current_queue; /**< the current queue from where we are taking requests */
 
+struct wfq_queue{
+    int weight;
+    int debt;
+
+};
 
 /**
  * function called to initialize WFQ by setting some variables.
  * @return true or false for success
  */
-bool WFQ_init()
+bool WFQ_init(char * setup)
 {   
     //The WFQ
     char *envvar_conf = "WFQ_CONF";
@@ -45,8 +50,19 @@ bool WFQ_init()
     //TODO: remove it (debug only)
     printf("!!!!! !!!!Reading file %s ...\n", wfq_config);
     
-    // TODO: set the queues weight and debs 
-    // the full path to the wfq config file is in wfq_config    
+    // TODO: set the queues weight and debs, new data structure for queues ->multitimeline_size (?)
+    // the full path to the wfq config file is in wfq_config
+    // malloc
+    FILE * setup_file = fopen(setup, "r");
+
+    * struct wfq_queue = malloc(multi_timeline_size * sizeof(wfq_queue));
+
+    for(int i = 0; i < multi_timeline_size; i++){ //fscanf to get the weights from the setup file
+        fscanf(setup_file, "%d ", &(wfq_queue[i].weight));
+        wfq_config[i].debt = 0;
+    }
+
+    fclose(setup_file);
 
 
     return true;
@@ -55,7 +71,7 @@ bool WFQ_init()
  * function called when stopping the use of TWINS, for now we don't have anything to clean up.
  */
 void WFQ_exit()
-{
+{ //free
 }
 /**
  * main function for the TWINS scheduler. It is called by the AGIOS thread to schedule some requests. It will continue to consume requests until there are no more requests or if notified by the process_requests_step2 function.
