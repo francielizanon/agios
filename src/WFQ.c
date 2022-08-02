@@ -67,6 +67,9 @@ bool WFQ_init()
     for (int i = 0; i < multi_timeline_size; i++)
     { //fscanf to get the weights from the setup file
         fscanf(setup_file, "%ld ", &(wfq_weights[i].weight));
+        if(wfq_weights[i].weight <0){
+            //agios_print("WFQ Error: Weights cannot be negative.\n");
+        }
         wfq_weights[i].debt = 0;
     }
 
@@ -100,53 +103,51 @@ int64_t WFQ(void)
     PRINT_FUNCTION_NAME;
 
 
-while(current_reqnb > 0 && ! WFQ_STOP) {
+    while(current_reqnb > 0 && ! WFQ_STOP) {
 
-    amount= wfq_weights[g_current_queue].weight + wfq_weights[g_current_queue].debt;
-
-
-    timeline_lock();
+        amount = wfq_weights[g_current_queue].weight + wfq_weights[g_current_queue].debt;
 
 
-    //we are not locking the current_reqnb_mutex, so we could be using outdated information. We have chosen to do this for performance reasons
-    while(!agios_list_empty(&(multi_timeline[g_current_queue])) && !WFQ_STOP)
-    {
-        req = agios_list_entry(multi_timeline[g_current_queue].next, struct request_t, related);
-        if(amount - req->len >= 0)
-        {
-            //we can only process requests from the current app_id
-            //take request from the right queue
-            //remove from the queue
-            agios_list_del(&req->related);
+        timeline_lock();
 
-            /*send it back to the file system*/
-            //we need the hash for this request's file id so we can update its stats
-            hash = get_hashtable_position(req->file_id);
-            info = process_requests_step1(req, hash);
 
-            amount -= req->len; //request size
+        //we are not locking the current_reqnb_mutex, so we could be using outdated information. We have chosen to do this for performance reasons
+        while (!agios_list_empty(&(multi_timeline[g_current_queue])) && !WFQ_STOP) {
+            req = agios_list_entry(multi_timeline[g_current_queue].next, struct request_t, related);
+            if (amount - req->len >= 0) {
+                //we can only process requests from the current app_id
+                //take request from the right queue
+                //remove from the queue
+                agios_list_del(&req->related);
 
-            generic_post_process(req);
+                /*send it back to the file system*/
+                //we need the hash for this request's file id so we can update its stats
+                hash = get_hashtable_position(req->file_id);
+                info = process_requests_step1(req, hash);
 
-unlock
+                amount -= req->len; //request size
 
-            WFQ_STOP = process_requests_step2(info);
+                generic_post_process(req);
 
-lock
+                timeline_unlock();
 
-        }else break;
+                WFQ_STOP = process_requests_step2(info);
 
-    } //end while
+                timeline_lock();
 
-    // update the queue debt
-    if(!agios_list_empty(&(multi_timeline[g_current_queue]))) wfq_weights[g_current_queue].debt = amount;
-    else wfq_weights[g_current_queue].debt = 0;
+            } else break;
 
-    g_current_queue = (g_current_queue + 1) %  multi_timeline_size;
+        }
 
-    timeline_unlock();
+        // update the queue debt
+        if (!agios_list_empty(&(multi_timeline[g_current_queue]))) wfq_weights[g_current_queue].debt = amount;
+        else wfq_weights[g_current_queue].debt = 0;
 
-end while
+        g_current_queue = (g_current_queue + 1) % multi_timeline_size;
+
+        timeline_unlock();
+
+    }
 
     //if we are here, we were asked to stop by the process_requests function, or we have no requests to the server currently being accessed
     return 0;
