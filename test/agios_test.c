@@ -22,8 +22,20 @@ struct request_info_t {
 	int32_t process_time;
 	int32_t time_before;
 	int32_t queue_id;
+
+    struct request_info_t * next;
 };
+
+struct executed_t{
+    struct request_info_t *head;
+    struct request_info_t *tail;
+};
+
 struct request_info_t *requests; /**< the list containing ALL requests generated in this test */
+
+//TODO: add comment
+struct executed_t * executed;
+
 pthread_barrier_t test_start;
 pthread_t *processing_threads;
 
@@ -54,6 +66,13 @@ void * process_thr(void *arg)
 }
 void * test_process(int64_t req_id)
 {
+     //add the request to the executed list
+    struct request_info_t *req = &requests[req_id];
+
+    if(executed->head == NULL) executed->head = req;
+    else executed->tail->next = req;
+    executed->tail = req;
+
 	//create a thread to process this request (so AGIOS does not have to wait for us). Another solution (possibly better depending on the user) would be to have a producer-consumer set up where here we put requests into a ready queue and a fixed number of threads consume them.
 	int32_t ret = pthread_create(&(processing_threads[req_id]), NULL, process_thr, (void *)&requests[req_id]);		
 	if (ret != 0) {
@@ -154,11 +173,79 @@ void retrieve_arguments_and_generate_requests(int argc, char **argv)
 		requests[i].process_time = rand() % process_time;
 		requests[i].time_before = rand() % time_between;
 		requests[i].queue_id = rand() % g_queue_ids;
+        requests[i].next = NULL;
 	}
 	free(lastoffset);
 }
 
-void test_priorities(); // TODO: write this fuction
+/* test_priorities
+ *
+ *
+ * to test the share of the bandwidth of each set over a certain window
+ * this function receives an array test_results of size nbr_sets and fills the array
+ * with the share for the corresponding set over the window
+ *
+ * Input: #sets, pointer to the first request of the window, the size of the window and the array to store
+ * the test results*/
+void test_priorities(char * output_file, int32_t nbr_sets, int32_t window_size, bool verbose_flag){
+
+    FILE * output = fopen(output_file, "w"); //"w" for write
+
+    double test_results[nbr_sets];
+
+
+    // writing the header
+    for(int i = 0; i < nbr_sets; i++){
+        if(i == nbr_sets - 1) fprintf(output,"set_%d\n", i+1);
+        else fprintf(output, "set_%d,", i+1);
+    }
+
+    struct request_info_t * current_req  = executed->head;
+
+
+    while(current_req != NULL){ //going through all requests
+
+        // Cleaning or starting the test_results array
+        for(int i = 0; i < nbr_sets; i++)
+            test_results[i] = 0;
+
+        struct request_info_t *ptr = current_req;
+        int total_size = 0; //total nbr of bytes to calculate the shares
+
+        //calculating the sum of the bytes of each set within the window
+        int window_counter = window_size;
+        while(ptr != NULL && window_counter > 0){
+            test_results[ptr->queue_id] += ptr->len;
+            //count the number of requests per set in the window
+
+            total_size += ptr->len;
+            ptr = ptr->next;
+            window_counter -= 1;
+        }
+
+        //calculating the share of the set and writing it in the csv file
+        for(int i = 0; i < nbr_sets; i++) {
+            test_results[i] = test_results[i] / total_size;
+            if(i == nbr_sets-1)
+                fprintf(output,"%lf\n", test_results[i]);
+            else
+                fprintf(output, "%lf,", test_results[i]);
+        }
+
+        //display results
+        if(verbose_flag) {
+            for (int i = 0; i < nbr_sets; i++) {
+                printf("Set %d: %lf\n", i + 1, test_results[i]);
+            }
+            puts("\n");
+        }
+
+        current_req = current_req->next;
+
+    }
+
+    fclose(output);
+}
 
 int main (int argc, char **argv)
 {
@@ -174,7 +261,12 @@ int main (int argc, char **argv)
 	if(!getenv(envvar_conf) || snprintf(file_config, buf_size, "%s", getenv(envvar_conf)) >= buf_size){
         fprintf(stderr, "The environment variable %s was not found or the BUFSIZE of %d was to small .\n", envvar_conf, buf_size);
         exit(1);
-    }	
+    }
+
+    // allocating the executed list structure
+    executed = (struct executed_t * ) malloc(sizeof(struct executed_t));
+    executed->head = NULL;
+    executed->tail = NULL;
 	
 	// commit test
 	/*get arguments*/
@@ -218,7 +310,7 @@ int main (int argc, char **argv)
 	//end agios, wait for the end of all threads, free stuff
 
     //TODO: Call the test_priorities heuristic
-
+    test_priorities("output.csv",g_queue_ids, 30, true);
 
 
 	agios_exit();

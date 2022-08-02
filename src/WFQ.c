@@ -103,7 +103,8 @@ int64_t WFQ(void)
     PRINT_FUNCTION_NAME;
 
 
-    while(current_reqnb > 0 && ! WFQ_STOP) {
+    while(current_reqnb > 0 && ! WFQ_STOP)
+    {
 
         amount = wfq_weights[g_current_queue].weight + wfq_weights[g_current_queue].debt;
 
