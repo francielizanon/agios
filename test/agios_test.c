@@ -47,7 +47,9 @@ void * process_thr(void *arg)
 	if (!agios_release_request(req->fileid, req->type, req->len, req->offset)) {
 		printf("PANIC! release request failed!\n");
 	}
-	inc_processed_reqnb();	
+	inc_processed_reqnb();
+    //TODO: Add the request to a linked list
+
 	return 0;
 }
 void * test_process(int64_t req_id)
@@ -156,6 +158,8 @@ void retrieve_arguments_and_generate_requests(int argc, char **argv)
 	free(lastoffset);
 }
 
+void test_priorities(); // TODO: write this fuction
+
 int main (int argc, char **argv)
 {
 	int64_t elapsed;
@@ -212,6 +216,11 @@ int main (int argc, char **argv)
 	elapsed = ((end_time.tv_nsec - start_time.tv_nsec) + ((end_time.tv_sec - start_time.tv_sec)*1000000000L));
 	printf("It took %ldns to generate and schedule %d requests. The thoughput was of %f requests/s\n", elapsed, g_generated_reqnb, ((double) (g_generated_reqnb) / (double) elapsed)*1000000000L);	
 	//end agios, wait for the end of all threads, free stuff
+
+    //TODO: Call the test_priorities heuristic
+
+
+
 	agios_exit();
 	for (int32_t i = 0; i < g_thread_nb; i++) pthread_join(threads[i], NULL);
 	for (int32_t i = 0; i < g_generated_reqnb; i++) pthread_join(processing_threads[i], NULL);
