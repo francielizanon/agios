@@ -23,9 +23,10 @@
 static int g_current_queue; /**< the current queue from where we are taking requests */
 struct wfq_weights_t * wfq_weights; /**< An array that keeps the weight and the debt of each queue */
 
-struct wfq_weights_t {
-    int32_t weight;
-    int32_t debt;
+struct wfq_weights_t
+{
+    int64_t weight;
+    int64_t debt;
 
 };
 
@@ -33,7 +34,8 @@ struct wfq_weights_t {
  * function called to initialize WFQ by setting some variables.
  * @return true or false for success
  */
-bool WFQ_init(char *setup) {
+bool WFQ_init()
+{
     //The WFQ
     char *envvar_conf = "WFQ_CONF";
     int buf_size = 100;
@@ -77,8 +79,8 @@ bool WFQ_init(char *setup) {
 /**
  * function called when stopping the use of TWINS, for now we don't have anything to clean up.
  */
-void WFQ_exit() { //free
-
+void WFQ_exit()
+{
     free(wfq_weights);
 }
 
@@ -86,33 +88,43 @@ void WFQ_exit() { //free
  * main function for the TWINS scheduler. It is called by the AGIOS thread to schedule some requests. It will continue to consume requests until there are no more requests or if notified by the process_requests_step2 function.
  * @return if we are returning because we were asked to stop, 0, otherwise we return the time until the end of the current window
  */
-int64_t WFQ(void) {
+int64_t WFQ(void)
+{
     bool WFQ_STOP = false; /**< the return of the process_requests_step2 function may notify us it is time to stop because of a periodic event */
-    struct request_t *req; /**< used to access requests from the queues */
+    struct request_t * req; /**< used to access requests from the queues */
     int32_t hash; /**< after selecting a request to be processed, we need to find out its hash to give to the process_requests function */
     struct processing_info_t *info; /**< the struct with information about requests to be processed, filled by process_requests_step1 and given as parameter to process_requests_step2 */
+
+    int64_t amount = wfq_weights[g_current_queue].weight + wfq_weights[g_current_queue].debt; 
 
     PRINT_FUNCTION_NAME;
     //we are not locking the current_reqnb_mutex, so we could be using outdated information. We have chosen to do this for performance reasons
     while (!WFQ_STOP) {
         timeline_lock();
         //process requests!
+
         if (!(agios_list_empty(
                 &(multi_timeline[g_current_queue])))) { //we can only process requests from the current app_id
             //take request from the right queue
             req = agios_list_entry(multi_timeline[g_current_queue].next, struct request_t, related);
-            //remove from the queue
-            agios_list_del(&req->related);
-            /*send it back to the file system*/
-            //we need the hash for this request's file id so we can update its stats 
-            hash = get_hashtable_position(req->file_id);
-            info = process_requests_step1(req, hash);
+            if(amount - req->len >= 0) {
+                //remove from the queue
+                agios_list_del(&req->related);
+                /*send it back to the file system*/
+                //we need the hash for this request's file id so we can update its stats
+                hash = get_hashtable_position(req->file_id);
+                info = process_requests_step1(req, hash);
 
-
+                amount -= req->len; //request size
+                wfq_weights[g_current_queue].debt = amount;
+            } else {
+                WFQ_STOP = true;
+            }
             generic_post_process(req);
             timeline_unlock();
             WFQ_STOP = process_requests_step2(info);
-        } else { //if there are no requests for this queue, we return control to the AGIOS thread and it will sleep a little 
+        } else { //if there are no requests for this queue, we return control to the AGIOS thread and it will sleep a little
+            wfq_weights[g_current_queue].debt = 0;
             timeline_unlock();
             break; //get out of the while 
         }
