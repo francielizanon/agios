@@ -95,15 +95,21 @@ int64_t WFQ(void)
     int32_t hash; /**< after selecting a request to be processed, we need to find out its hash to give to the process_requests function */
     struct processing_info_t *info; /**< the struct with information about requests to be processed, filled by process_requests_step1 and given as parameter to process_requests_step2 */
 
-    int64_t amount = wfq_weights[g_current_queue].weight + wfq_weights[g_current_queue].debt; 
+    int64_t amount;
 
     PRINT_FUNCTION_NAME;
+
+
+while(current_reqnb > 0 && ! WFQ_STOP) {
+
+    amount= wfq_weights[g_current_queue].weight + wfq_weights[g_current_queue].debt;
+
 
     timeline_lock();
 
 
     //we are not locking the current_reqnb_mutex, so we could be using outdated information. We have chosen to do this for performance reasons
-    while(!agios_list_empty(&(multi_timeline[g_current_queue])))
+    while(!agios_list_empty(&(multi_timeline[g_current_queue])) && !WFQ_STOP)
     {
         req = agios_list_entry(multi_timeline[g_current_queue].next, struct request_t, related);
         if(amount - req->len >= 0)
@@ -121,7 +127,13 @@ int64_t WFQ(void)
             amount -= req->len; //request size
 
             generic_post_process(req);
+
+unlock
+
             WFQ_STOP = process_requests_step2(info);
+
+lock
+
         }else break;
 
     } //end while
@@ -133,8 +145,9 @@ int64_t WFQ(void)
     g_current_queue = (g_current_queue + 1) %  multi_timeline_size;
 
     timeline_unlock();
+
+end while
+
     //if we are here, we were asked to stop by the process_requests function, or we have no requests to the server currently being accessed
-    if (WFQ_STOP) return 0;
-    else return 5;
-    //else return (config_twins_window - get_nanoelapsed(g_window_start));
+    return 0;
 }
