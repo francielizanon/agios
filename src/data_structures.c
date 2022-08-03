@@ -4,8 +4,8 @@
     @see agios_request.h
     @see req_hashtable.c
     @see req_timeline.c
-    @see agios_add_request.c 
-    Depending on the scheduling algorithm being used, requests will be organized in different data structures. For instance, aIOLi and SJF use a hashtable, TO and TO-agg use a timeline, and TWINS uses multiple timelines. No matter the data structure used to hold the requests, AGIOS will always maintain the hashtable, because it is used for the statistics. 
+    @see agios_add_request.c
+    Depending on the scheduling algorithm being used, requests will be organized in different data structures. For instance, aIOLi and SJF use a hashtable, TO and TO-agg use a timeline, and TWINS uses multiple timelines. No matter the data structure used to hold the requests, AGIOS will always maintain the hashtable, because it is used for the statistics.
 */
 
 #include <pthread.h>
@@ -35,8 +35,8 @@ void put_all_requests_in_hashtable(struct agios_list_head *list);
  * @param hash the line of the hashtable from where this request came.
  * @param req_file the file accessed by this request.
  */
-void put_this_request_in_timeline(struct request_t *req, 
-					int32_t hash, 
+void put_this_request_in_timeline(struct request_t *req,
+					int32_t hash,
 					struct file_t *req_file)
 {
 	//remove from queue
@@ -51,15 +51,15 @@ void put_this_request_in_timeline(struct request_t *req,
 	else timeline_add_req(req, hash, req_file); //put in timeline
 
 }
-/** 
+/**
  * function called to move all requests from a list of requests (either a queue from the hashtable or an aggregated request) to the timeline.
  * @see put_this_request_in_timeline
  * @param queue the list of requests.
  * @param req_file the file from which this list came from.
  * @param hash the line of the hashtable from which this list came from.
  */
-void put_all_requests_in_timeline(struct agios_list_head *queue, 
-					struct file_t *req_file, 
+void put_all_requests_in_timeline(struct agios_list_head *queue,
+					struct file_t *req_file,
 					int32_t hash)
 {
 	struct request_t *req; /**< used to iterate over all requests in the list */
@@ -71,7 +71,7 @@ void put_all_requests_in_timeline(struct agios_list_head *queue,
 	}
 	if (aux_req) put_this_request_in_timeline(aux_req, hash, req_file);
 }
-/** 
+/**
  * function used to move a request from the timeline to the hashtable. If this request is a virtual one (composed of multiple actual requests) and the new scheduling algorithm does not allow aggregations, the request will be separated and all its sub-requests will be added to the hashtable separately.
  * @param req the request.
  */
@@ -104,7 +104,7 @@ void put_all_requests_in_hashtable(struct agios_list_head *list)
 	}
 	if (aux_req) put_req_in_hashtable(aux_req);
 }
-/** 
+/**
  * This function gets all requests from the hashtable and moves them to the timeline. NO OTHER THREAD may be using any of these data structures. This will be used while migrating between scheduling algorithms, so after calling lock_all_data_structures.
  */
 void migrate_from_hashtable_to_timeline()
@@ -122,7 +122,7 @@ void migrate_from_hashtable_to_timeline()
 		}
 	}
 }
-/** 
+/**
  * This function gets all requests from the timeline and moves them to the hashtable. NO OTHER THREAD may be using any of these data structures. This will be used while migrating between scheduling algorithms, so after calling lock_all_data_structures.
  */
 void migrate_from_timeline_to_hashtable()
@@ -158,9 +158,9 @@ void unlock_all_data_structures(void)
  */
 bool allocate_data_structures(int32_t max_queue_id)
 {
-	reset_global_stats(); //puts all statistics to zero 
+	reset_global_stats(); //puts all statistics to zero
 	if (!timeline_init(max_queue_id)) return false; //initializes the timeline
-	if (!hashtable_init()) return false; 
+	if (!hashtable_init()) return false;
 	//put request and file counters to 0
 	current_reqnb = 0;
 	current_filenb=0;
@@ -168,28 +168,30 @@ bool allocate_data_structures(int32_t max_queue_id)
 	lock_all_data_structures();
 	return true;
 }
-/** 
+/**
  * function called to acquire the lock for the data structure currently in use. It is either the hashtable or the timeline depending on the scheduling algorithm being used. The catch is that we will call lock, but while we are waiting the scheduler in use may have changed, so we need to be sure we are holding the adequate lock before adding a request (or looking for it to cancel or release). If we don't, then the request is being added to a ghost data structure (they both exist even when not in use), from where it will never be recoved to be processed. The caller has to check the return value to be sure to unlock the right data structure after using it.
  * @param hash the line of the hashtable containing information about the file being accessed.
- * @return true if the request is to be added to the hashtable, false for the timeline. 
+ * @return true if the request is to be added to the hashtable, false for the timeline.
  */
 bool acquire_adequate_lock(int32_t hash)
 {
 	bool previous_needs_hashtable;  /**< Used to control the used data structure in the case it is being changed while this function is running */
+
+    while(!current_scheduler); // this is maybe not ideal, but it's needed here because sometimes the initialization function of the scheduler may be too long (it is the case of WFQ), and then the agios thread may not be done initializing the scheduler and setting this variable by the time the first request arrives. We have decided to busy wait because this is a rare occurrence, rather than adding a mutex that will have to be locked and unlocked every time a new request is added, released, or canceled.
 
 	while (true) { //we'll break out of this loop when we are sure to have acquired the lock for the right data structure
 		//check if the current scheduler uses the hashtable or not and then acquire the right lock
 		previous_needs_hashtable = current_scheduler->needs_hashtable;
 		if (previous_needs_hashtable) hashtable_lock(hash);
 		else timeline_lock();
-		//the problem is that the scheduling algorithm could have changed while we were waiting to acquire the lock, and then it is possible we have the wrong lock. 
+		//the problem is that the scheduling algorithm could have changed while we were waiting to acquire the lock, and then it is possible we have the wrong lock.
 		if (previous_needs_hashtable != current_scheduler->needs_hashtable) {
 			//the other thread has migrated scheduling algorithms (and data structure) while we were waiting for the lock (so the lock is no longer the adequate one)
 			if (previous_needs_hashtable) hashtable_unlock(hash);
 			else timeline_unlock();
 		}
 		else break; //everything is fine, we got the right lock (and now that we have it, other threads cannot change the scheduling algorithm
-	} 
+	}
 	return previous_needs_hashtable;
 }
 /**
