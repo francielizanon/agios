@@ -23,6 +23,8 @@ struct request_info_t {
 	int32_t time_before;
 	int32_t queue_id;
 
+    struct timespec start_time;
+    struct timespec end_time;
     struct request_info_t * next;
 };
 
@@ -69,6 +71,10 @@ void * test_process(int64_t req_id)
      //add the request to the executed list
     struct request_info_t *req = &requests[req_id];
 
+
+    clock_gettime(CLOCK_MONOTONIC, (struct timespec *) &(req->end_time));
+
+    //executed linked list
     if(executed->head == NULL) executed->head = req;
     else executed->tail->next = req;
     executed->tail = req;
@@ -99,6 +105,10 @@ void *test_thr(void *arg)
 		timeout.tv_nsec = requests[i].time_before % 1000000000L;
 		nanosleep(&timeout, NULL);
 		/*give a request to AGIOS*/
+
+        //clock_gettime(CLOCK_MONOTONIC, &request[i].start_time);
+
+
 		if(!agios_add_request(requests[i].fileid, requests[i].type, requests[i].offset, requests[i].len, i, requests[i].queue_id)) {
 			printf("PANIC! Agios_add_request failed!\n");
 		}
