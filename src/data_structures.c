@@ -177,9 +177,11 @@ bool acquire_adequate_lock(int32_t hash)
 {
 	bool previous_needs_hashtable;  /**< Used to control the used data structure in the case it is being changed while this function is running */
 
-    while(!current_scheduler); // this is maybe not ideal, but it's needed here because sometimes the initialization function of the scheduler may be too long (it is the case of WFQ), and then the agios thread may not be done initializing the scheduler and setting this variable by the time the first request arrives. We have decided to busy wait because this is a rare occurrence, rather than adding a mutex that will have to be locked and unlocked every time a new request is added, released, or canceled.
+    while(!current_scheduler){}// this is maybe not ideal, but it's needed here because sometimes the initialization function of the scheduler may be too long (it is the case of WFQ), and then the agios thread may not be done initializing the scheduler and setting this variable by the time the first request arrives. We have decided to busy wait because this is a rare occurrence, rather than adding a mutex that will have to be locked and unlocked every time a new request is added, released, or canceled.
 
-	while (true) { //we'll break out of this loop when we are sure to have acquired the lock for the right data structure
+
+	while(true)
+    { //we'll break out of this loop when we are sure to have acquired the lock for the right data structure
 		//check if the current scheduler uses the hashtable or not and then acquire the right lock
 		previous_needs_hashtable = current_scheduler->needs_hashtable;
 		if (previous_needs_hashtable) hashtable_lock(hash);
