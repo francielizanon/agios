@@ -119,10 +119,17 @@ bool read_configuration_file(char *config_file)
 	config_agios_select_algorithm_period = ret*1000000L; //convert it to ns
 	config_lookup_int(&agios_config, "library_options.select_algorithm_min_reqnumber", &config_agios_select_algorithm_min_reqnumber);
 	config_lookup_string(&agios_config, "library_options.starting_algorithm", &ret_str);
-    config_lookup_string(&agios_config, "library_options.wfq_conf", &ret_str);
-    config_wfq_conf_file = malloc(sizeof(char)*(strlen(ret_str)+1));
-    if (!config_wfq_conf_file) return false;
 	if (false == get_algorithm_from_string(ret_str, &config_agios_starting_algorithm)) return false;
+
+    // if the default algorithm is WFQ we need to read the full path of the wfq conf file.
+    if(config_agios_default_algorithm == WFQ_SCHEDULER) {
+        config_lookup_string(&agios_config, "library_options.wfq_conf", &ret_str);
+        config_wfq_conf_file = malloc(sizeof(char) * (strlen(ret_str) + 1));
+        strcpy(config_wfq_conf_file, ret_str);
+        if (!config_wfq_conf_file) return false;
+    }
+
+
 #if 0 //test if the starting algorithm is a dynamic one
 	if((config_agios_starting_algorithm == DYN_TREE_SCHEDULER) || (config_agios_starting_algorithm == ARMED_BANDIT_SCHEDULER))
 	{
