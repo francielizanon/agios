@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <assert.h>
 
 #include "agios_config.h"
 #include "agios_counters.h"
@@ -37,44 +38,30 @@ struct wfq_weights_t
 bool WFQ_init()
 {
     //The WFQ
-    char *envvar_conf = "WFQ_CONF";
-    int buf_size = 100;
-    char wfq_config_file[buf_size];
 
-    // Firstly, we check if the full path for wfq config file was set up in the environment var WFQ_CONF
-    if (!getenv(envvar_conf))
-    {
-        agios_print("WFQ Error: The environment variable %s was not found.\n", envvar_conf);
-        return false;
-    }
-    if( snprintf(wfq_config_file, buf_size, "%s", getenv(envvar_conf)) >= buf_size)
-    {
-        agios_print("WFQ Error: The BUFSIZE of %d was to small.\n", buf_size);
-        return false;
-    }
+    // Firstly, we set the queues weight and debs
+    // the weights of each queue is read from the wfq.conf
+    FILE *setup_file = fopen(config_wfq_conf_file, "r");
 
-    //Secondly, we set the queues weight and debs
-    // the weights of each queue is read from the wfq.conf.
-    FILE *setup_file = fopen(wfq_config_file, "r");
+    agios_print("WFQ conf file: %s\n", config_wfq_conf_file);
     if(!setup_file)
     {
-        agios_print("WFQ Error: Error opening WFQ config file %s.\n", wfq_config_file);
+        agios_print("WFQ Error: Error opening WFQ config file %s.\n", config_wfq_conf_file);
         return false;
     }
 
-    wfq_weights  = (struct wfq_weights_t *) malloc(multi_timeline_size * sizeof(struct wfq_weights_t));
+    wfq_weights  = (struct wfq_weights_t *) malloc(multi_timeline_size  * sizeof(struct wfq_weights_t));
 
-    for (int i = 0; i < multi_timeline_size; i++)
+    for (int i = 0; i < multi_timeline_size - 1; i++)
     { //fscanf to get the weights from the setup file
-        fscanf(setup_file, "%ld ", &(wfq_weights[i].weight));
-        if(wfq_weights[i].weight <0){
-            //agios_print("WFQ Error: Weights cannot be negative.\n");
-        }
+        fscanf(setup_file, "%ld", &(wfq_weights[i].weight));
         wfq_weights[i].debt = 0;
+        // check if the weight is greater than zero
+        assert(wfq_weights[i].weight > 0);
     }
 
-    fclose(setup_file);
 
+    fclose(setup_file);
 
     return true;
 }
@@ -144,7 +131,7 @@ int64_t WFQ(void)
         if (!agios_list_empty(&(multi_timeline[g_current_queue]))) wfq_weights[g_current_queue].debt = amount;
         else wfq_weights[g_current_queue].debt = 0;
 
-        g_current_queue = (g_current_queue + 1) % multi_timeline_size;
+        g_current_queue = (g_current_queue + 1) % (multi_timeline_size - 1);
 
         timeline_unlock();
 
