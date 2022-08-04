@@ -104,11 +104,11 @@ void *test_thr(void *arg)
 		timeout.tv_sec = requests[i].time_before / 1000000000L;
 		timeout.tv_nsec = requests[i].time_before % 1000000000L;
 		nanosleep(&timeout, NULL);
-		/*give a request to AGIOS*/
 
-        //clock_gettime(CLOCK_MONOTONIC, &request[i].start_time);
+        clock_gettime(CLOCK_MONOTONIC, (struct timespec *) &(requests[i].start_time));
 
 
+        /*give a request to AGIOS*/
 		if(!agios_add_request(requests[i].fileid, requests[i].type, requests[i].offset, requests[i].len, i, requests[i].queue_id)) {
 			printf("PANIC! Agios_add_request failed!\n");
 		}
@@ -324,6 +324,16 @@ int main (int argc, char **argv)
 
 
 	agios_exit();
+
+
+    FILE * output = fopen("output.csv", "w");
+    fprintf(output, "request_id,start_time,end_time,queue_id\n");
+    // Generate the csv going through all the requests
+    for(int32_t i = 0; i < g_generated_reqnb; i++){
+        fprintf(output, "%d,%ld,%ld,%d\n", (int)i, requests[i].start_time.tv_sec, requests[i].end_time.tv_sec, (int)requests[i].queue_id);
+    }
+
+
 	for (int32_t i = 0; i < g_thread_nb; i++) pthread_join(threads[i], NULL);
 	for (int32_t i = 0; i < g_generated_reqnb; i++) pthread_join(processing_threads[i], NULL);
 	//TODO free other stuff?
