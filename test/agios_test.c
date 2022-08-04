@@ -23,8 +23,8 @@ struct request_info_t {
 	int32_t time_before;
 	int32_t queue_id;
 
-    struct timespec start_time;
-    struct timespec end_time;
+    struct timespec *start_time;
+    struct timespec *end_time;
     struct request_info_t * next;
 };
 
@@ -72,7 +72,7 @@ void * test_process(int64_t req_id)
     struct request_info_t *req = &requests[req_id];
 
 
-    clock_gettime(CLOCK_MONOTONIC, (struct timespec *) &(req->end_time));
+    clock_gettime(CLOCK_MONOTONIC, req->end_time);
 
     //executed linked list
     if(executed->head == NULL) executed->head = req;
@@ -105,7 +105,7 @@ void *test_thr(void *arg)
 		timeout.tv_nsec = requests[i].time_before % 1000000000L;
 		nanosleep(&timeout, NULL);
 
-        clock_gettime(CLOCK_MONOTONIC, (struct timespec *) &(requests[i].start_time));
+        clock_gettime(CLOCK_MONOTONIC, requests[i].start_time);
 
 
         /*give a request to AGIOS*/
@@ -184,6 +184,8 @@ void retrieve_arguments_and_generate_requests(int argc, char **argv)
 		requests[i].time_before = rand() % time_between;
 		requests[i].queue_id = rand() % g_queue_ids;
         requests[i].next = NULL;
+        requests[i].start_time = (struct timespec *) malloc ( sizeof(struct timespec));
+        requests[i].end_time = (struct timespec *) malloc ( sizeof(struct timespec));
 	}
 	free(lastoffset);
 }
@@ -319,18 +321,26 @@ int main (int argc, char **argv)
 	printf("It took %ldns to generate and schedule %d requests. The thoughput was of %f requests/s\n", elapsed, g_generated_reqnb, ((double) (g_generated_reqnb) / (double) elapsed)*1000000000L);	
 	//end agios, wait for the end of all threads, free stuff
 
-    //TODO: Call the test_priorities heuristic
-    test_priorities("output.csv",g_queue_ids, 30, true);
-
 
 	agios_exit();
 
+    // Agios has finished, now let's compute some execution metrics
 
-    FILE * output = fopen("output.csv", "w");
-    fprintf(output, "request_id,start_time,end_time,queue_id\n");
+    // WFQ: starting test_priorities heuristic to verify if the WFQ heuristic kept the right bandwidth proportions
+    //test_priorities("test_priorities.csv",g_queue_ids, 30, true);
+
+    // WFQ: gerenating a CSV file with the timestamps of the requests
+    FILE * output = fopen("timestamp_output.csv", "w");
+    fprintf(output, "request_id,queue_id,start_time,end_time,elapsed\n");
     // Generate the csv going through all the requests
     for(int32_t i = 0; i < g_generated_reqnb; i++){
-        fprintf(output, "%d,%ld,%ld,%d\n", (int)i, requests[i].start_time.tv_sec, requests[i].end_time.tv_sec, (int)requests[i].queue_id);
+        fprintf(output, "%d,%d,%ld,%ld,%ld\n",
+                i, // request_id
+                requests[i].queue_id,          //queue_id
+                requests[i].start_time->tv_nsec, //request start_time
+                requests[i].end_time->tv_nsec,   //request end_time
+                requests[i].end_time->tv_nsec - requests[i].start_time->tv_nsec); //elapsed time
+
     }
 
 
