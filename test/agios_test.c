@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <agios.h>
+#include <scheduling_algorithms.h>
 
 int32_t g_processed_reqnb=0; /**< the number of requests already processed and released rfom agios */
 pthread_mutex_t g_processed_reqnb_mutex=PTHREAD_MUTEX_INITIALIZER;
@@ -328,7 +329,10 @@ int main (int argc, char **argv)
     //test_priorities("test_priorities.csv",g_queue_ids, 30, true);
 
     // WFQ: gerenating a CSV file with the timestamps of the requests
-    FILE * output = fopen("timestamp_output.csv", "w");
+    char buffer[1024];
+    sprintf(buffer, "output_WFQ_%d.csv", (int)g_thread_nb);
+    FILE * output = fopen(buffer, "w"); //TODO: other name
+    // us argv[1]
     fprintf(output, "request_id,queue_id,start_time,end_time,elapsed\n");
     // Generate the csv going through all the requests
     for(int32_t i = 0; i < g_generated_reqnb; i++){
