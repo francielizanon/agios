@@ -65,7 +65,6 @@ void * process_thr(void *arg)
 		printf("PANIC! release request failed!\n");
 	}
 	inc_processed_reqnb();
-    //TODO: Add the request to a linked list
 
 	return 0;
 }
@@ -322,8 +321,7 @@ int main (int argc, char **argv)
 	printf("It took %ldns to generate and schedule %d requests. The thoughput was of %f requests/s\n", elapsed, g_generated_reqnb, ((double) (g_generated_reqnb) / (double) elapsed)*1000000000L);	
 	//end agios, wait for the end of all threads, free stuff
 
-    //TODO: getting the scheduler name
-    printf("SCHEDULER: %s\n",get_algorithm_name_from_index(config_agios_default_algorithm));
+
 	agios_exit();
 
     // Agios has finished, now let's compute some execution metrics
@@ -333,8 +331,8 @@ int main (int argc, char **argv)
 
     // WFQ: gerenating a CSV file with the timestamps of the requests
     char buffer[1024];
-    sprintf(buffer, "output_WFQ_%d.csv", (int)g_thread_nb);
-    FILE * output = fopen(buffer, "w"); //TODO: other name
+    sprintf(buffer, "output_%s_%d.csv", get_algorithm_name_from_index(config_agios_default_algorithm), (int)g_thread_nb);
+    FILE * output = fopen(buffer, "w");
     // us argv[1]
     fprintf(output, "request_id,queue_id,start_time,end_time,elapsed\n");
     // Generate the csv going through all the requests
@@ -342,9 +340,10 @@ int main (int argc, char **argv)
         fprintf(output, "%d,%d,%ld,%ld,%ld\n",
                 i, // request_id
                 requests[i].queue_id,          //queue_id
-                requests[i].start_time.tv_nsec, //request start_time
-                requests[i].end_time.tv_nsec,   //request end_time
-                requests[i].end_time.tv_nsec - requests[i].start_time.tv_nsec); //elapsed time
+                requests[i].start_time.tv_nsec + requests[i].start_time.tv_sec*1000000000L, //request start_time
+                requests[i].end_time.tv_nsec + requests[i].end_time.tv_sec*1000000000L,   //request end_time
+                //requests[i].end_time.tv_nsec - requests[i].start_time.trequests[i].end_time.tv_nsecv_nsec); //elapsed time
+                (requests[i].end_time.tv_nsec - requests[i].start_time.tv_nsec) + ((requests[i].end_time.tv_sec - requests[i].start_time.tv_sec)*1000000000L));
 
     }
 
