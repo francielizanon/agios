@@ -22,12 +22,12 @@
 
 
 static int g_current_queue; /**< the current queue from where we are taking requests */
-struct wfq_weights_t * wfq_weights; /**< An array that keeps the weight and the debt of each queue */
+struct wfq_weights_t * wfq_weights; /**< An array that keeps the weight and the credit of each queue */
 
 struct wfq_weights_t
 {
     int64_t weight;
-    int64_t debt;
+    int64_t credit;
 
 };
 
@@ -39,7 +39,7 @@ bool WFQ_init()
 {
     //The WFQ
 
-    // Firstly, we set the queues weight and debs
+    // Firstly, we set the queues weight and credit
     // the weights of each queue is read from the wfq.conf
     FILE *setup_file = fopen(config_wfq_conf_file, "r");
 
@@ -55,7 +55,7 @@ bool WFQ_init()
     for (int i = 0; i < multi_timeline_size - 1; i++)
     { //fscanf to get the weights from the setup file
         fscanf(setup_file, "%ld", &(wfq_weights[i].weight));
-        wfq_weights[i].debt = 0;
+        wfq_weights[i].credit = 0;
         // check if the weight is greater than zero
         assert(wfq_weights[i].weight > 0);
     }
@@ -93,7 +93,7 @@ int64_t WFQ(void)
     while(current_reqnb > 0 && ! WFQ_STOP)
     {
 
-        amount = wfq_weights[g_current_queue].weight + wfq_weights[g_current_queue].debt;
+        amount = wfq_weights[g_current_queue].weight + wfq_weights[g_current_queue].credit;
 
 
         timeline_lock();
@@ -127,9 +127,9 @@ int64_t WFQ(void)
 
         }
 
-        // update the queue debt
-        if (!agios_list_empty(&(multi_timeline[g_current_queue]))) wfq_weights[g_current_queue].debt = amount;
-        else wfq_weights[g_current_queue].debt = 0;
+        // update the queue credit
+        if (!agios_list_empty(&(multi_timeline[g_current_queue]))) wfq_weights[g_current_queue].credit = amount;
+        else wfq_weights[g_current_queue].credit = 0;
 
         g_current_queue = (g_current_queue + 1) % (multi_timeline_size - 1);
 
