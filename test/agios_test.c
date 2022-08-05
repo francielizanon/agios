@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <agios.h>
+#include <scheduling_algorithms.h>
 
 int32_t g_processed_reqnb=0; /**< the number of requests already processed and released rfom agios */
 pthread_mutex_t g_processed_reqnb_mutex=PTHREAD_MUTEX_INITIALIZER;
@@ -13,6 +14,8 @@ int32_t g_generated_reqnb; /**< the total number of generated requests */
 int32_t g_reqnb_perthread; /**< the number pf requests generated per thread */
 int32_t g_thread_nb; /**< number of thread */
 int32_t g_queue_ids; /**< number of possible ids provided with agios_add_request to identify different servers or applications to SW and TWINS */
+
+extern int32_t config_agios_default_algorithm;
 
 struct request_info_t {
 	char fileid[100];
@@ -319,7 +322,8 @@ int main (int argc, char **argv)
 	printf("It took %ldns to generate and schedule %d requests. The thoughput was of %f requests/s\n", elapsed, g_generated_reqnb, ((double) (g_generated_reqnb) / (double) elapsed)*1000000000L);	
 	//end agios, wait for the end of all threads, free stuff
 
-
+    //TODO: getting the scheduler name
+    printf("SCHEDULER: %s\n",get_algorithm_name_from_index(config_agios_default_algorithm));
 	agios_exit();
 
     // Agios has finished, now let's compute some execution metrics
