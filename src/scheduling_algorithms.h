@@ -17,7 +17,8 @@
 #define SW_SCHEDULER 5
 #define NOOP_SCHEDULER 6
 #define TWINS_SCHEDULER 7
-#define IO_SCHEDULER_COUNT 8  /*! \warning this has to be updated if adding or removing schedulign algorithms */
+#define WFQ_SCHEDULER 8
+#define IO_SCHEDULER_COUNT 9  /*! \warning this has to be updated if adding or removing schedulign algorithms */
 
 struct io_scheduler_instance_t {
 	bool (*init)(void); /**< called to initialize the scheduler. MUST return true or false for success. This function is not mandatory, can be NULL. */ 

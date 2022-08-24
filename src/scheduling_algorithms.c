@@ -19,6 +19,7 @@
 #include "SW.h"
 #include "TO.h"
 #include "TWINS.h"
+#include "WFQ.h"
 
 int32_t current_alg = 0; /**< the identifier of the scheduling algorithm being currently used. @see scheduling_algorithms.h */
 struct io_scheduler_instance_t *current_scheduler=NULL; /**< a pointer to the structure describing the scheduling algorithm being currently used. */
@@ -121,7 +122,19 @@ static struct io_scheduler_instance_t io_schedulers[] = {
 			.needs_hashtable = false, 
 			.can_be_dynamically_selected = false, //The functions that implement the migration between different scheduling algorithms were not adapted for this algorithm, so it should never be used with a dynamic algorithm until we fix that.  
 			.is_dynamic=false,
-		}
+		},
+        {
+            .name = "WFQ",
+            .index = WFQ_SCHEDULER,
+            .init = &WFQ_init,
+            .schedule = &WFQ,
+            .exit = &WFQ_exit,
+            .select_algorithm = NULL,
+            .max_aggreg_size = 1, //??
+            .needs_hashtable = false,
+            .can_be_dynamically_selected = false, //The functions that implement the migration between different scheduling algorithms were not adapted for this algorithm
+            .is_dynamic = false,
+        }
 	};
 /**
  * Called to change the current scheduling algorithm and update local parameters. Here we assume the scheduling thread is NOT running, so it won't mess with the structures. This function will acquire the lock to all data structures, must call unlock afterwards 

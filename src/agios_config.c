@@ -25,8 +25,9 @@ char *config_trace_agios_file_prefix=NULL; 		/**< if creating trace files, they 
 char *config_trace_agios_file_sufix=NULL;		/**< @see config_trace_agios_file_prefix */
 int64_t config_twins_window=1000000L; 		/**< The amount of time TWINS will stay in one queue before moving on to the next one (in nanoseconds). The default is 1ms */
 int32_t config_waiting_time = 900000;			/**< when there are no requests, the scheduler sleep using this as a timeout. It is also used by aIOLi to wait if it thinks better aggregations are possible */
+char *config_wfq_conf_file=NULL; /**< full path to the wfq conf file*/
 
-/**
+ /**
  * used to clean all memory allocated for the configuration parameters (at the end of the execution).
  */
 void cleanup_config_parameters(void)
@@ -119,6 +120,16 @@ bool read_configuration_file(char *config_file)
 	config_lookup_int(&agios_config, "library_options.select_algorithm_min_reqnumber", &config_agios_select_algorithm_min_reqnumber);
 	config_lookup_string(&agios_config, "library_options.starting_algorithm", &ret_str);
 	if (false == get_algorithm_from_string(ret_str, &config_agios_starting_algorithm)) return false;
+
+    // if the default algorithm is WFQ we need to read the full path of the wfq conf file.
+    if(config_agios_default_algorithm == WFQ_SCHEDULER) {
+        config_lookup_string(&agios_config, "library_options.wfq_conf", &ret_str);
+        config_wfq_conf_file = malloc(sizeof(char) * (strlen(ret_str) + 1));
+        strcpy(config_wfq_conf_file, ret_str);
+        if (!config_wfq_conf_file) return false;
+    }
+
+
 #if 0 //test if the starting algorithm is a dynamic one
 	if((config_agios_starting_algorithm == DYN_TREE_SCHEDULER) || (config_agios_starting_algorithm == ARMED_BANDIT_SCHEDULER))
 	{

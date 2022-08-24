@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <agios.h>
+#include <scheduling_algorithms.h>
 
 int32_t g_processed_reqnb=0; /**< the number of requests already processed and released rfom agios */
 pthread_mutex_t g_processed_reqnb_mutex=PTHREAD_MUTEX_INITIALIZER;
@@ -14,6 +15,8 @@ int32_t g_reqnb_perthread; /**< the number pf requests generated per thread */
 int32_t g_thread_nb; /**< number of thread */
 int32_t g_queue_ids; /**< number of possible ids provided with agios_add_request to identify different servers or applications to SW and TWINS */
 
+extern int32_t config_agios_default_algorithm;
+
 struct request_info_t {
 	char fileid[100];
 	int32_t len;
@@ -22,8 +25,22 @@ struct request_info_t {
 	int32_t process_time;
 	int32_t time_before;
 	int32_t queue_id;
+
+    struct timespec start_time;
+    struct timespec end_time;
+    struct request_info_t * next;
 };
+
+struct executed_t{
+    struct request_info_t *head;
+    struct request_info_t *tail;
+};
+
 struct request_info_t *requests; /**< the list containing ALL requests generated in this test */
+
+//TODO: add comment
+struct executed_t * executed;
+
 pthread_barrier_t test_start;
 pthread_t *processing_threads;
 
@@ -47,11 +64,23 @@ void * process_thr(void *arg)
 	if (!agios_release_request(req->fileid, req->type, req->len, req->offset)) {
 		printf("PANIC! release request failed!\n");
 	}
-	inc_processed_reqnb();	
+	inc_processed_reqnb();
+
 	return 0;
 }
 void * test_process(int64_t req_id)
 {
+     //add the request to the executed list
+    struct request_info_t *req = &requests[req_id];
+
+
+    clock_gettime(CLOCK_MONOTONIC, &req->end_time);
+
+    //executed linked list
+    if(executed->head == NULL) executed->head = req;
+    else executed->tail->next = req;
+    executed->tail = req;
+
 	//create a thread to process this request (so AGIOS does not have to wait for us). Another solution (possibly better depending on the user) would be to have a producer-consumer set up where here we put requests into a ready queue and a fixed number of threads consume them.
 	int32_t ret = pthread_create(&(processing_threads[req_id]), NULL, process_thr, (void *)&requests[req_id]);		
 	if (ret != 0) {
@@ -77,7 +106,11 @@ void *test_thr(void *arg)
 		timeout.tv_sec = requests[i].time_before / 1000000000L;
 		timeout.tv_nsec = requests[i].time_before % 1000000000L;
 		nanosleep(&timeout, NULL);
-		/*give a request to AGIOS*/
+
+        clock_gettime(CLOCK_MONOTONIC, &requests[i].start_time);
+
+
+        /*give a request to AGIOS*/
 		if(!agios_add_request(requests[i].fileid, requests[i].type, requests[i].offset, requests[i].len, i, requests[i].queue_id)) {
 			printf("PANIC! Agios_add_request failed!\n");
 		}
@@ -152,8 +185,78 @@ void retrieve_arguments_and_generate_requests(int argc, char **argv)
 		requests[i].process_time = rand() % process_time;
 		requests[i].time_before = rand() % time_between;
 		requests[i].queue_id = rand() % g_queue_ids;
+        requests[i].next = NULL;
 	}
 	free(lastoffset);
+}
+
+/* test_priorities
+ *
+ *
+ * to test the share of the bandwidth of each set over a certain window
+ * this function receives an array test_results of size nbr_sets and fills the array
+ * with the share for the corresponding set over the window
+ *
+ * Input: #sets, pointer to the first request of the window, the size of the window and the array to store
+ * the test results*/
+void test_priorities(char * output_file, int32_t nbr_sets, int32_t window_size, bool verbose_flag){
+
+    FILE * output = fopen(output_file, "w"); //"w" for write
+
+    double test_results[nbr_sets];
+
+
+    // writing the header
+    for(int i = 0; i < nbr_sets; i++){
+        if(i == nbr_sets - 1) fprintf(output,"set_%d\n", i+1);
+        else fprintf(output, "set_%d,", i+1);
+    }
+
+    struct request_info_t * current_req  = executed->head;
+
+
+    while(current_req != NULL){ //going through all requests
+
+        // Cleaning or starting the test_results array
+        for(int i = 0; i < nbr_sets; i++)
+            test_results[i] = 0;
+
+        struct request_info_t *ptr = current_req;
+        int total_size = 0; //total nbr of bytes to calculate the shares
+
+        //calculating the sum of the bytes of each set within the window
+        int window_counter = window_size;
+        while(ptr != NULL && window_counter > 0){
+            test_results[ptr->queue_id] += ptr->len;
+            //count the number of requests per set in the window
+
+            total_size += ptr->len;
+            ptr = ptr->next;
+            window_counter -= 1;
+        }
+
+        //calculating the share of the set and writing it in the csv file
+        for(int i = 0; i < nbr_sets; i++) {
+            test_results[i] = test_results[i] / total_size;
+            if(i == nbr_sets-1)
+                fprintf(output,"%lf\n", test_results[i]);
+            else
+                fprintf(output, "%lf,", test_results[i]);
+        }
+
+        //display results
+        if(verbose_flag) {
+            for (int i = 0; i < nbr_sets; i++) {
+                printf("Set %d: %lf\n", i + 1, test_results[i]);
+            }
+            puts("\n");
+        }
+
+        current_req = current_req->next;
+
+    }
+
+    fclose(output);
 }
 
 int main (int argc, char **argv)
@@ -163,10 +266,25 @@ int main (int argc, char **argv)
 	int64_t *thread_index;
 	struct timespec start_time, end_time;
 
+	char *envvar_conf = "AGIOS_CONF";
+	int buf_size = 100;
+	char file_config[buf_size];
+
+	if(!getenv(envvar_conf) || snprintf(file_config, buf_size, "%s", getenv(envvar_conf)) >= buf_size){
+        fprintf(stderr, "The environment variable %s was not found or the BUFSIZE of %d was to small .\n", envvar_conf, buf_size);
+        exit(1);
+    }
+
+    // allocating the executed list structure
+    executed = (struct executed_t * ) malloc(sizeof(struct executed_t));
+    executed->head = NULL;
+    executed->tail = NULL;
+	
+	// commit test
 	/*get arguments*/
 	retrieve_arguments_and_generate_requests(argc, argv);
 	/*start AGIOS*/
-	if (!agios_init(test_process, NULL, "/tmp/agios.conf", g_queue_ids)) {
+	if (!agios_init(test_process, NULL, file_config, g_queue_ids)) {
 		printf("PANIC! Could not initialize AGIOS!\n");
 		exit(1);
 	}
@@ -202,7 +320,34 @@ int main (int argc, char **argv)
 	elapsed = ((end_time.tv_nsec - start_time.tv_nsec) + ((end_time.tv_sec - start_time.tv_sec)*1000000000L));
 	printf("It took %ldns to generate and schedule %d requests. The thoughput was of %f requests/s\n", elapsed, g_generated_reqnb, ((double) (g_generated_reqnb) / (double) elapsed)*1000000000L);	
 	//end agios, wait for the end of all threads, free stuff
+
+
 	agios_exit();
+
+    // Agios has finished, now let's compute some execution metrics
+
+    // WFQ: starting test_priorities heuristic to verify if the WFQ heuristic kept the right bandwidth proportions
+    //test_priorities("test_priorities.csv",g_queue_ids, 30, true);
+
+    // WFQ: gerenating a CSV file with the timestamps of the requests
+    char buffer[1024];
+    sprintf(buffer, "output_%s_%d.csv", get_algorithm_name_from_index(config_agios_default_algorithm), (int)g_thread_nb);
+    FILE * output = fopen(buffer, "w");
+    // us argv[1]
+    fprintf(output, "request_id,queue_id,start_time,end_time,elapsed\n");
+    // Generate the csv going through all the requests
+    for(int32_t i = 0; i < g_generated_reqnb; i++){
+        fprintf(output, "%d,%d,%ld,%ld,%ld\n",
+                i, // request_id
+                requests[i].queue_id,          //queue_id
+                requests[i].start_time.tv_nsec + requests[i].start_time.tv_sec*1000000000L, //request start_time
+                requests[i].end_time.tv_nsec + requests[i].end_time.tv_sec*1000000000L,   //request end_time
+                //requests[i].end_time.tv_nsec - requests[i].start_time.trequests[i].end_time.tv_nsecv_nsec); //elapsed time
+                (requests[i].end_time.tv_nsec - requests[i].start_time.tv_nsec) + ((requests[i].end_time.tv_sec - requests[i].start_time.tv_sec)*1000000000L));
+
+    }
+
+
 	for (int32_t i = 0; i < g_thread_nb; i++) pthread_join(threads[i], NULL);
 	for (int32_t i = 0; i < g_generated_reqnb; i++) pthread_join(processing_threads[i], NULL);
 	//TODO free other stuff?

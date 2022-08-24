@@ -83,7 +83,7 @@ bool __timeline_add_req(struct request_t *req,
 		agios_list_add_tail(&req->related, this_timeline);
 		return true;
 	} 
-	if (current_alg == TWINS_SCHEDULER) {
+	if (current_alg == TWINS_SCHEDULER || current_alg == WFQ_SCHEDULER) {
 		agios_list_add_tail(&req->related, &(multi_timeline[req->queue_id]));
 		return true;
 	}

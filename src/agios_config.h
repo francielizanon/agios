@@ -29,3 +29,5 @@ extern int64_t config_sw_size;
 extern int64_t config_twins_window;
 //performance module 
 extern int32_t config_agios_performance_values;
+//about wfq
+extern char *config_wfq_conf_file;
