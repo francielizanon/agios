@@ -36,6 +36,8 @@ void cleanup_config_parameters(void)
 		free(config_trace_agios_file_prefix);
 	if(config_trace_agios_file_sufix)
 		free(config_trace_agios_file_sufix);
+	if(config_wfq_conf_file)
+		free(config_wfq_conf_file);
 }
 /**
  * simple function that receives an int and returns a bool version of it. Used while reading the parameters (because libconfig does not have a bool type).
